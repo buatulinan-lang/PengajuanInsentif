@@ -1,0 +1,15 @@
+{
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "{app,templates,static,data}/**",
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
+  ],
+  "crons": [
+    { "path": "/health", "schedule": "0 3 * * *" }
+  ]
+}

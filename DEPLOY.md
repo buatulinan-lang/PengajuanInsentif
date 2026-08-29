@@ -1,24 +1,23 @@
-# Panduan Deploy: Supabase + GitHub + Render
+# Panduan Deploy: Supabase + GitHub + Vercel
+
+Tanpa kartu kredit. Vercel Hobby dan Supabase Free keduanya cukup mendaftar
+dengan akun GitHub / email.
 
 ## 1. Ambil connection string dari Supabase
 
 1. Buka project Supabase → tombol **Connect** di bagian atas dashboard.
-2. Pilih tab **ORMs / Connection string**, lalu ambil **Session pooler**.
-   Bentuknya:
+2. Ambil **Transaction pooler** (port **6543**), bukan Session pooler dan bukan
+   Direct connection. Bentuknya:
    ```
-   postgresql://postgres.[project-ref]:[PASSWORD]@aws-[region].pooler.supabase.com:5432/postgres
+   postgresql://postgres.[project-ref]:[PASSWORD]@aws-[region].pooler.supabase.com:6543/postgres
    ```
 3. Ganti `[PASSWORD]` dengan password database Anda (bukan password login Supabase).
-   Kalau lupa: Settings → Database → **Reset database password**.
+   Lupa? Settings → Database → **Reset database password**.
 
-> **Gunakan Session pooler (port 5432), bukan Direct connection.**
-> Render berjalan di jaringan IPv4, sedangkan direct connection Supabase hanya IPv6 —
-> ini penyebab error `Network is unreachable` yang paling sering terjadi.
-> Kalau password mengandung karakter khusus (`@ : / #`), encode dulu
-> (mis. `@` → `%40`).
-
-Aplikasi ini juga sudah mendukung Transaction pooler (port 6543) secara otomatis,
-tapi Session pooler lebih cocok untuk aplikasi seperti ini.
+> **Kenapa port 6543?** Vercel berjalan model serverless: tiap permintaan bisa
+> memakai koneksi baru. Transaction pooler dirancang untuk pola ini. Aplikasi
+> sudah mengenali port 6543 dan otomatis mematikan connection pool bawaannya.
+> Kalau password mengandung `@ : / #`, encode dulu (mis. `@` → `%40`).
 
 ## 2. Push ke GitHub
 
@@ -32,102 +31,63 @@ git remote add origin https://github.com/<akun-anda>/insentif-app.git
 git push -u origin main
 ```
 
-`.gitignore` sudah mengecualikan database lokal dan file upload,
-jadi tidak ada data yang ikut ter-upload.
+Repositorinya boleh privat. `.gitignore` sudah mengecualikan database lokal dan
+file unggahan.
 
-## 3. Deploy di Render
+## 3. Deploy di Vercel
 
-1. Login ke Render → **New** → **Web Service** → hubungkan repo GitHub tadi.
-2. Isi:
-   - **Runtime**: Python 3
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-3. Buka tab **Environment**, tambahkan:
+1. Buka https://vercel.com → **Sign up** dengan akun GitHub. Tidak diminta kartu.
+2. **Add New → Project** → pilih repository tadi → **Import**.
+3. Framework Preset biarkan **Other**. Build & output settings tidak perlu diubah —
+   `vercel.json` di repo sudah mengaturnya.
+4. Buka **Environment Variables**, isi:
 
    | Key | Value |
    |---|---|
    | `DATABASE_URL` | connection string Supabase dari langkah 1 |
-   | `SECRET` | teks acak panjang (untuk enkripsi sesi login) |
-   | `BASE_URL` | `https://<nama-app>.onrender.com` |
+   | `SECRET` | teks acak panjang (kunci sesi login) |
+   | `BASE_URL` | `https://<nama-proyek>.vercel.app` |
    | `SEED_PASSWORD` | password awal akun contoh |
-   | `PYTHON_VERSION` | `3.11.9` |
 
-4. Deploy. Saat pertama kali jalan, tabel dan akun awal dibuat otomatis di Supabase.
+5. **Deploy**. Saat pertama diakses, tabel dan data awal (18 cabang) dibuat
+   otomatis di Supabase.
 
-> `BASE_URL` wajib diisi dengan domain asli. Isi QR pada dokumen Word
-> mengambil alamat dari sini — kalau salah, QR akan mengarah ke `localhost`.
+> `BASE_URL` baru diketahui setelah deploy pertama. Isi seadanya dulu, lalu
+> setelah alamatnya keluar, perbarui nilainya dan **Redeploy**. Isi QR pada
+> dokumen Word mengambil alamat dari sini.
 
-Alternatif: karena repo sudah berisi `render.yaml`, Anda bisa pakai
-**New → Blueprint** dan Render akan membaca konfigurasinya sendiri;
-Anda tinggal mengisi 3 nilai yang ditandai `sync: false`.
+## 4. Menjaga Supabase tidak dijeda
 
-## 4. Setelah deploy
+Project Supabase gratis berhenti sendiri bila tidak ada aktivitas selama 7 hari.
+`vercel.json` sudah memuat cron harian yang memanggil `/health` setiap pukul 03:00
+UTC — cukup untuk menjaganya tetap aktif, dan tersedia di paket Hobby tanpa biaya.
 
-- Login dengan `admin` / nilai `SEED_PASSWORD`, lalu **ganti semua password akun**.
-- Isi master cabang beserta alamat lengkapnya (dipakai untuk header dokumen Word).
+Pastikan berjalan: buka **Project → Settings → Cron Jobs** di Vercel, dan setelah
+seminggu periksa project Supabase masih berstatus aktif (bukan *Paused*).
 
-## Catatan penting soal free tier Render
+## 5. Setelah deploy
 
-- **Aplikasi tidur setelah 15 menit tanpa akses.** Permintaan pertama setelah itu
-  butuh ±30–60 detik untuk bangun. Jatah 750 jam per bulan.
-- **Tidak ada disk permanen.** Karena itu database, file Excel, dan lampiran
-  screenshot semuanya disimpan di Postgres Supabase — bukan di disk Render.
-  Dokumen Word dibuat ulang setiap kali diunduh, jadi selalu memuat QR terbaru.
-- Untuk pemakaian harian oleh tim, paket **Starter** ($7/bulan) menghilangkan
-  masalah tidur dan lambat di akses pertama.
-- Jangan pakai database gratis bawaan Render — masa berlakunya hanya 30 hari.
-  Supabase yang Anda punya jauh lebih cocok.
+- Buka `https://<nama-proyek>.vercel.app`, login `admin` dengan nilai `SEED_PASSWORD`.
+- Periksa Master Cabang, isi Master Sales, dan impor Master Supplier.
+- Uji dengan data yang hasilnya sudah diketahui (lihat README).
 
----
+## Catatan tentang Vercel Hobby
 
-# 5. Ping otomatis (wajib, dan gratis)
+- **Tidak ada tidur.** Berbeda dengan Render gratis, aplikasi tidak dimatikan
+  setelah menganggur. Permintaan pertama setelah lama diam butuh 2–5 detik
+  untuk *cold start*, setelah itu normal.
+- **Batas waktu 60 detik per permintaan.** Cukup lapang: file faktur ~8.000 baris
+  diproses dalam hitungan detik.
+- **Sistem berkas hanya-baca**, kecuali `/tmp`. Karena itu database, file Excel,
+  dan lampiran semuanya disimpan di Supabase — bukan di disk server.
+- **Alamat tidak terdaftar publik**, tapi siapa pun yang tahu alamatnya bisa
+  membuka halaman login. Pakai `SEED_PASSWORD` yang kuat.
+- Paket Hobby untuk penggunaan non-komersial. Bila nanti dipakai sebagai
+  perkakas kerja resmi perusahaan, Vercel meminta upgrade ke paket Pro.
+  Alternatif tanpa kartu saat itu: jalankan di komputer kantor sendiri.
 
-Tanpa ini: aplikasi Render tidur tiap 15 menit, dan project Supabase dijeda
-setelah 7 hari tanpa aktivitas. Endpoint `/health` sudah tersedia di aplikasi —
-ia menyentuh database, jadi satu ping menyelesaikan kedua masalah sekaligus.
+## Alternatif: Render
 
-Pilih **salah satu**:
-
-### Opsi A — cron-job.org (paling andal, disarankan)
-1. Daftar gratis di https://cron-job.org
-2. Create cronjob → URL: `https://<nama-app>.onrender.com/health`
-3. Jadwal: setiap 10 menit. Simpan.
-
-### Opsi B — GitHub Actions (sudah disiapkan di repo)
-File `.github/workflows/keepalive.yml` sudah ada. Tinggal:
-1. Repo GitHub → Settings → Secrets and variables → Actions → **New repository secret**
-2. Name: `APP_URL`, Value: `https://<nama-app>.onrender.com`
-
-Catatan: jadwal GitHub Actions kadang meleset beberapa menit, dan workflow
-otomatis dinonaktifkan bila repo tidak ada aktivitas selama 60 hari.
-Karena itu Opsi A lebih aman untuk jangka panjang.
-
-### Memastikan berjalan
-Buka `https://<nama-app>.onrender.com/health` di browser — harus muncul
-`{"status":"ok", ...}`. Setelah seminggu, cek dashboard Supabase: project harus
-tetap berstatus aktif, tidak "Paused".
-
----
-
-# Ringkasan biaya
-
-| Komponen | Sekarang | Bila tim sudah bergantung penuh |
-|---|---|---|
-| Render | Free (750 jam/bln, cukup untuk nyala terus) | Starter $7/bln |
-| Supabase | Free (yang sudah Anda punya) | tetap Free |
-| Ping otomatis | Free | Free |
-| **Total** | **Rp 0** | **± Rp 115rb/bln** |
-
-Naik ke Render Starter kalau: instance free mulai sering direstart tanpa
-pemberitahuan, memori 512 MB terasa kurang, atau proses approval sudah jadi
-alur resmi yang tidak boleh terganggu.
-
----
-
-# Keamanan sebelum dipakai sungguhan
-
-1. **Ganti semua password akun contoh** setelah login pertama.
-2. `SECRET` harus teks acak panjang dan tidak pernah masuk ke Git.
-3. Password database Supabase jangan dipakai ulang di tempat lain.
-4. Data insentif karyawan bersifat sensitif — jangan bagikan URL aplikasi ke
-   luar tim yang berkepentingan.
+Repo juga berisi `render.yaml` bila suatu saat Anda ingin memakai Render
+(perlu verifikasi kartu, dan aplikasi tidur setelah 15 menit menganggur).
+Di Render gunakan **Session pooler port 5432**, bukan 6543.

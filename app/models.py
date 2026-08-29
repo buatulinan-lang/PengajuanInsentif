@@ -7,7 +7,9 @@ from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 Base = declarative_base()
 
 # Render menyediakan DATABASE_URL untuk Postgres. Tanpa itu, jatuh ke SQLite lokal.
-DB_URL = os.environ.get("DATABASE_URL", "sqlite:///data/insentif.db")
+from app.paths import SQLITE_PATH
+
+DB_URL = os.environ.get("DATABASE_URL", f"sqlite:///{SQLITE_PATH}")
 if DB_URL.startswith("postgres://"):          # format lama dari Render
     DB_URL = DB_URL.replace("postgres://", "postgresql+psycopg2://", 1)
 elif DB_URL.startswith("postgresql://"):

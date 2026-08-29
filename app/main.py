@@ -8,21 +8,25 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.models import *
+from app.paths import TEMPLATES_DIR, STATIC_DIR
 from app.auth import verify_pw, hash_pw, current_user, require
 from app import calc, calc_sales, calc_purchasing, docgen
 
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
 
-init_db()
+# Siapkan tabel dan data awal. Aman dijalankan berulang: seed hanya menambah
+# yang belum ada. Set SKIP_SEED=1 bila ingin melewatinya.
 try:
-    import seed  # membuat cabang & akun awal bila database masih kosong
+    init_db()
+    if os.environ.get("SKIP_SEED") != "1":
+        import seed  # noqa: F401
 except Exception as _e:
-    print("seed dilewati:", _e)
+    print("penyiapan awal dilewati:", _e)
 
 app = FastAPI(title="Aplikasi Pengajuan Insentif MFlash")
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get("SECRET", "ganti-secret-ini"))
-app.mount("/static", StaticFiles(directory="static"), name="static")
-tpl = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+tpl = Jinja2Templates(directory=TEMPLATES_DIR)
 tpl.env.globals.update(STATUS_LABELS=STATUS_LABELS, ROLE_LABELS=ROLE_LABELS,
                        TYPES=TYPES, BULAN=docgen.BULAN, rupiah=docgen.rupiah,
                        STATUS_FLOW=STATUS_FLOW)

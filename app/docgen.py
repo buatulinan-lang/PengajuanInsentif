@@ -1,5 +1,7 @@
 """Generator dokumen Word: isi data, ganti header alamat cabang, sisipkan QR TTD."""
 import io, os, re, qrcode
+
+from app.paths import DOC_TEMPLATES_DIR
 from docx import Document
 from docx.shared import Cm
 
@@ -146,4 +148,4 @@ def build_mapping(sub, branch, submitter, hasil, base_url):
 
 def sub_template(sub):
     from app.models import TYPES
-    return os.path.join("data/doc_templates", TYPES[sub.type]["template"])
+    return os.path.join(DOC_TEMPLATES_DIR, TYPES[sub.type]["template"])

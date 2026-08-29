@@ -1,6 +1,6 @@
 # Aplikasi Pengajuan Insentif MFlash
 
-Deploy ke Render + Supabase (termasuk ping otomatis agar tidak tidur/dijeda): lihat **DEPLOY.md**.
+Deploy ke Vercel + Supabase (gratis, tanpa kartu kredit): lihat **DEPLOY.md**.
 
 ## Menjalankan lokal
 ```
@@ -29,6 +29,15 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 Draft → Proses Approval ARM → Proses Approval CEO → Proses Pencairan Finance → Done.
 Tiap approval menghasilkan QR unik yang disisipkan ke dokumen Word dan bisa
 dicek publik di `/verify/<token>`.
+
+## Uji cepat setelah deploy
+Pakai berkas MFlash Klender periode Juli 2026 — hasilnya harus persis:
+
+| Jenis | Hasil |
+|---|---|
+| Profit Store Leader | Rp 1.900.000 |
+| Sales & Team | Rp 1.563.919 |
+| Purchasing | Rp 754.347 |
 
 ## Yang perlu dilengkapi
 1. **`data/rules.json`** — aturan perhitungan insentif (tier % net profit, pengali,

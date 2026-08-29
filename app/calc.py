@@ -14,7 +14,7 @@ Aturan angkanya ada di data/rules.json agar bisa diubah tanpa menyentuh kode.
 import json, os, re
 from openpyxl import load_workbook
 
-RULES_PATH = "data/rules.json"
+from app.paths import RULES_PATH
 
 BULAN_XLS = ["JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI",
              "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"]
