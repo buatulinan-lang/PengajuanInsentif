@@ -5,6 +5,7 @@
 data faktur. Bila di data ada ejaan lain untuk orang yang sama (mis. &ldquo;Arif Fikri&rdquo;
 dan &ldquo;ARIF FIKRI KLENDER&rdquo;), tulis ejaan lainnya di kolom Ejaan Lain agar
 transaksinya tidak terlewat.</p>
+{% if galat %}<p class="err">{{ galat }}</p>{% endif %}
 {% if pesan %}<p class="err" style="background:#e4f5ea;border-color:#aedcc0;color:#1f6f43">
 {{ pesan }}</p>{% endif %}
 <table>
@@ -47,5 +48,25 @@ transaksinya tidak terlewat.</p>
 </div>
 <p><button>Simpan</button>
 {% if edit %}<a href="/master/sales" style="margin-left:10px">Batal</a>{% endif %}</p>
+</form></div>
+
+<div class="card">
+<h2>Impor dari Excel</h2>
+<p class="mut" style="margin-top:-8px">Unggah file dengan kolom <b>Nama</b>,
+<b>Cabang</b>, <b>Status Karyawan</b>, dan <b>Ejaan Lain</b>. Nama yang sudah
+terdaftar di cabang yang sama hanya diperbarui, tidak digandakan. Baris yang
+cabangnya tidak dikenali akan dilewati dan dilaporkan.</p>
+<form method="post" action="/master/sales/impor" enctype="multipart/form-data">
+<div class="grid">
+<div><label>Berkas Excel</label>
+  <input type="file" name="berkas" accept=".xlsx,.xlsm" required></div>
+<div><label>Cabang cadangan (bila kolom Cabang kosong)</label>
+  <select name="branch_id" style="width:100%">
+  <option value="0">— tidak ada —</option>
+  {% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+  </select></div>
+</div>
+<p><button>Impor</button>
+<a href="/master/sales/contoh.xlsx" style="margin-left:12px">Unduh berkas contoh</a></p>
 </form></div>
 {% endblock %}

@@ -14,13 +14,62 @@
 
 <div class="card"><h2>Status Pengajuan</h2>
 <ul class="tl">
-{% set order = ['menunggu_arm','menunggu_ceo','menunggu_finance','done'] %}
+{% set order = alur(s.type) %}
 {% set idx = order.index(s.status) if s.status in order else -1 %}
 {% for st in order %}
 <li class="{{ 'ok' if idx >= loop.index0 or s.status=='done' }}">{{ STATUS_LABELS[st] }}</li>
 {% endfor %}
 {% if s.status == 'ditolak' %}<li class="ok">Ditolak</li>{% endif %}
 </ul></div>
+
+{% if hasil.jenis == 'profit_arm' %}
+<div class="card"><h2>Laba Bersih Seluruh Cabang &mdash; {{ hasil.bulan_nama }} {{ hasil.tahun }}</h2>
+<div style="overflow-x:auto"><table>
+<tr><th>Cabang</th><th class="num">Omzet</th><th class="num">Setelah Prepaid</th>
+<th class="num">Laba Ditahan</th><th class="num">Laba Bersih</th><th>Hitung</th></tr>
+{% for b in hasil.baris %}
+<tr {% if not b.ikut %}class="mut"{% endif %}>
+<td>{{ b.cabang }}</td>
+<td class="num">{{ '{:,.0f}'.format(b.omzet) }}</td>
+<td class="num">{{ '{:,.0f}'.format(b.laba_setelah_prepaid) }}</td>
+<td class="num">{{ '{:,.0f}'.format(b.laba_ditahan) }}</td>
+<td class="num">{{ '{:,.0f}'.format(b.laba_bersih) }}</td>
+<td>{% if b.ikut %}<span class="badge b-done">Ikut</span>
+    {% else %}<span class="badge b-draft">Tidak</span>{% endif %}</td></tr>
+{% endfor %}
+<tr><th colspan="4">TOTAL LABA BERSIH</th>
+    <th class="num">{{ '{:,.0f}'.format(hasil.total_laba_bersih) }}</th><th></th></tr>
+</table></div></div>
+
+<div class="card"><h2>Perhitungan Insentif</h2>
+<table>
+<tr><td>Baris matriks (dibulatkan ke bawah)</td>
+    <td class="num">{{ rupiah(hasil.baris_matriks or 0) }}</td></tr>
+<tr><td>Nominal insentif menurut matriks</td>
+    <td class="num">{{ rupiah(hasil.nominal_matriks) }}</td></tr>
+<tr><td>Pencapaian Target Prioritas
+    {% if hasil.pencapaian_prioritas is not none %}({{ hasil.pencapaian_prioritas }}%){% endif %}
+    &mdash; {{ hasil.label_pengali }}</td>
+    <td class="num">{{ hasil.pengali_pct }}%</td></tr>
+<tr><td>Insentif setelah pengali</td>
+    <td class="num">{{ rupiah(hasil.setelah_pengali) }}</td></tr>
+{% for p in hasil.rincian_potongan %}
+<tr><td>Pengurang {{ p.pct }}% &mdash; {{ p.nama }}</td>
+    <td class="num">&minus; {{ rupiah(p.nilai) }}</td></tr>{% endfor %}
+<tr><th>INSENTIF YANG DIDAPAT</th>
+    <th class="num" style="font-size:16px">{{ rupiah(hasil.total) }}</th></tr>
+</table></div>
+
+{% if hasil.goal and hasil.goal|selectattr('diisi')|list %}
+<div class="card"><h2>Pencapaian Goal</h2>
+<table><tr><th>Goal</th><th class="num">Pencapaian</th><th>Status</th></tr>
+{% for g in hasil.goal %}{% if g.diisi %}
+<tr><td>{{ g.nama }}{% if g.utama %} <span class="mut">(utama)</span>{% endif %}</td>
+<td class="num">{{ g.pencapaian }}%</td>
+<td>{% if g.tercapai %}<span class="badge b-done">Tercapai</span>
+    {% else %}<span class="badge b-rej">Di bawah {{ hasil.ambang_goal_pct }}%</span>{% endif %}</td>
+</tr>{% endif %}{% endfor %}</table></div>{% endif %}
+{% endif %}
 
 {% if hasil.jenis == 'purchasing' %}
 <div class="card"><h2>Proporsi Pembelian ke Supplier &mdash;

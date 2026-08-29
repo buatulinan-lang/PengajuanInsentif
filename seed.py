@@ -62,6 +62,14 @@ CABANG = [
      "Kabupaten Bogor, Jawa Barat 16820"),
 ]
 
+# Kantor pusat: dipakai sebagai kop surat pengajuan Insentif Profit ARM.
+PUSAT = ("Pusat", "MFlash Pusat", "Jakarta",
+         "Pejaten Office Park, Jl. Buncit Raya No.E79, RT.1/RW.7, Pejaten Bar., "
+         "Ps. Minggu, Kota Jakarta Selatan, Daerah Khusus Ibukota Jakarta 12510")
+
+# Cabang yang tidak ikut menambah total laba bersih pada Insentif Profit ARM
+TIDAK_HITUNG_ARM = {"Pejaten", "Pusat"}
+
 # Store Leader per cabang. Password awal sama untuk semua; setiap orang
 # menggantinya sendiri lewat menu Ganti Password saat pertama masuk.
 PW_SL = "12345678"
@@ -101,11 +109,18 @@ def jalankan():
         b = db.query(Branch).filter_by(name=nama).first()
         if not b:
             db.add(Branch(name=nama, display_name=f"MFlash – {nama}",
-                          address=alamat, city=kota, active=True))
+                          address=alamat, city=kota, active=True,
+                          hitung_arm=nama not in TIDAK_HITUNG_ARM))
             baru += 1
         elif not (b.address or "").strip() or b.address.strip() == "-":
             b.address, b.city = alamat, kota   # lengkapi yang masih kosong
             diperbarui += 1
+
+    nm, tampil, kota_p, alamat_p = PUSAT
+    if not db.query(Branch).filter_by(name=nm).first():
+        db.add(Branch(name=nm, display_name=tampil, address=alamat_p,
+                      city=kota_p, active=True, hitung_arm=False))
+        baru += 1
     db.commit()
 
     if RESET and db.query(User).count():

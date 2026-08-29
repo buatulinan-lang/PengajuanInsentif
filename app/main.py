@@ -1,4 +1,4 @@
-import io, json, os, secrets, tempfile
+import io, json, os, re, secrets, tempfile
 from datetime import datetime
 from typing import Union
 from urllib.parse import quote
@@ -11,7 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.models import *
 from app.paths import TEMPLATES_DIR, STATIC_DIR
 from app.auth import verify_pw, hash_pw, current_user, require
-from app import calc, calc_sales, calc_purchasing, docgen
+from app import calc, calc_sales, calc_purchasing, calc_arm, docgen
 
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
 
@@ -83,7 +83,7 @@ if os.path.isdir(STATIC_DIR):
 tpl = Jinja2Templates(directory=TEMPLATES_DIR)
 tpl.env.globals.update(STATUS_LABELS=STATUS_LABELS, ROLE_LABELS=ROLE_LABELS,
                        TYPES=TYPES, BULAN=docgen.BULAN, rupiah=docgen.rupiah,
-                       STATUS_FLOW=STATUS_FLOW)
+                       STATUS_FLOW=STATUS_FLOW, alur=alur)
 
 
 def db_(): return SessionLocal()
@@ -211,20 +211,59 @@ def logout(request: Request):
 
 
 # ------------------------------------------------- dashboard
+PELIHAT_SEMUA = (ROLE_ARM, ROLE_CEO, ROLE_FINANCE, ROLE_ADMIN)
+
+
+def boleh_lihat_nominal(u):
+    """Store Leader tidak melihat nominal pengajuan di dashboard."""
+    return u.role in PELIHAT_SEMUA
+
+
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request):
+def home(request: Request, tab: str = "", cabang: int = 0, bulan: int = 0,
+         tipe: str = "", tahun: int = 0):
     u = current_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     db = db_()
-    q = db.query(Submission).order_by(Submission.id.desc())
+
+    q = db.query(Submission)
     if u.role == ROLE_SL:
         q = q.filter(Submission.submitter_id == u.id)
     elif u.role == ROLE_ARM:
-        pass  # bisa dibatasi per area bila master area sudah ada
-    items = q.all()
-    inbox = [s for s in items if ACTOR_OF_STATUS.get(s.status) == u.role]
-    return render(request, "dashboard.html", items=items, inbox=inbox)
+        # ARM melihat semua cabang, termasuk pengajuannya sendiri
+        pass
+
+    if cabang:
+        q = q.filter(Submission.branch_id == cabang)
+    if bulan:
+        q = q.filter(Submission.period_month == bulan)
+    if tahun:
+        q = q.filter(Submission.period_year == tahun)
+    if tipe:
+        q = q.filter(Submission.type == tipe)
+
+    semua = q.order_by(Submission.id.desc()).all()
+
+    TAB = [("", "Semua"), (ST_DRAFT, "Draft"), (ST_WAIT_ARM, "Approval ARM"),
+           (ST_WAIT_CEO, "Approval CEO"), (ST_WAIT_FIN, "Pencairan Finance"),
+           (ST_DONE, "Done"), (ST_REJECTED, "Ditolak")]
+    jumlah = {kode: len([x for x in semua if not kode or x.status == kode])
+              for kode, _ in TAB}
+    items = [x for x in semua if not tab or x.status == tab]
+    inbox = [x for x in semua if ACTOR_OF_STATUS.get(x.status) == u.role]
+
+    tautan = "".join(f"&{k}={v}" for k, v in
+                     (("cabang", cabang), ("bulan", bulan), ("tahun", tahun),
+                      ("tipe", tipe)) if v)
+
+    return render(request, "dashboard.html", items=items, inbox=inbox, tautan=tautan,
+                  tab=tab, TAB=TAB, jumlah=jumlah,
+                  f_cabang=cabang, f_bulan=bulan, f_tipe=tipe, f_tahun=tahun,
+                  branches=db.query(Branch).order_by(Branch.name).all(),
+                  tahun_ada=sorted({x.period_year for x in semua}, reverse=True),
+                  lihat_nominal=boleh_lihat_nominal(u),
+                  boleh_unduh=u.role in PELIHAT_SEMUA)
 
 
 # ------------------------------------------------- kelola akun
@@ -350,7 +389,7 @@ def master_cabang(request: Request, edit: int = 0, pesan: str = ""):
 @app.post("/master/cabang")
 def master_cabang_simpan(request: Request, id: int = Form(0), name: str = Form(...),
                          display_name: str = Form(""), address: str = Form(""),
-                         city: str = Form("Jakarta")):
+                         city: str = Form("Jakarta"), hitung_arm: str = Form("")):
     require(request, [ROLE_ADMIN, ROLE_ARM])
     db = db_()
     name = name.strip()
@@ -364,6 +403,7 @@ def master_cabang_simpan(request: Request, id: int = Form(0), name: str = Form(.
     b.display_name = display_name.strip() or f"MFlash \u2013 {name}"
     b.address = address.strip()
     b.city = city.strip() or "Jakarta"
+    b.hitung_arm = bool(hitung_arm)
     if not id:
         b.active = True
         db.add(b)
@@ -384,13 +424,14 @@ def master_cabang_aktif(request: Request, bid: int):
 
 # ------------------------------------------------- master sales
 @app.get("/master/sales", response_class=HTMLResponse)
-def master_sales(request: Request, edit: int = 0, pesan: str = ""):
+def master_sales(request: Request, edit: int = 0, pesan: str = "", galat: str = ""):
     require(request, [ROLE_ADMIN, ROLE_ARM])
     db = db_()
     return render(request, "master_sales.html",
                   items=db.query(Sales).order_by(Sales.branch_id, Sales.name).all(),
                   branches=db.query(Branch).filter_by(active=True).order_by(Branch.name).all(),
-                  edit=db.query(Sales).get(edit) if edit else None, pesan=pesan)
+                  edit=db.query(Sales).get(edit) if edit else None,
+                  pesan=pesan, galat=galat)
 
 
 @app.post("/master/sales")
@@ -411,6 +452,103 @@ def master_sales_simpan(request: Request, id: int = Form(0), name: str = Form(..
         db.add(sl)
     db.commit()
     return RedirectResponse("/master/sales?pesan=Data+sales+tersimpan", 303)
+
+
+@app.post("/master/sales/impor")
+async def master_sales_impor(request: Request, berkas: UploadFile = File(...),
+                             branch_id: int = Form(0)):
+    """Impor daftar sales dari Excel: kolom Nama, Cabang, Status Karyawan, Ejaan Lain."""
+    require(request, [ROLE_ADMIN, ROLE_ARM])
+    db = db_()
+    if not getattr(berkas, "filename", ""):
+        return RedirectResponse("/master/sales?galat=Pilih+file+dulu", 303)
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as t:
+        t.write(await berkas.read())
+        path = t.name
+
+    def _k(x):
+        return re.sub(r"[^a-z0-9]", "", str(x or "").lower())
+
+    ALIAS = {"nama": "nama", "namasales": "nama", "nama sales": "nama",
+             "cabang": "cabang", "status": "status",
+             "statuskaryawan": "status", "ejaanlain": "alias",
+             "alias": "alias", "ejaanlainpisahkankoma": "alias"}
+    baru = ubah = lewat = 0
+    tak_ada_cabang = set()
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(path, data_only=True)
+        ws = wb[wb.sheetnames[0]]
+        rows = list(ws.iter_rows(values_only=True))
+        header_i = None
+        for i, r in enumerate(rows[:15]):
+            kunci = {ALIAS.get(_k(c)) for c in r if c is not None}
+            if "nama" in kunci:
+                header_i = i
+                break
+        if header_i is None:
+            raise ValueError("Kolom Nama tidak ditemukan pada file")
+        header = [ALIAS.get(_k(c)) for c in rows[header_i]]
+
+        cabang_peta = {_k(b.name): b for b in db.query(Branch).all()}
+        for r in rows[header_i + 1:]:
+            d = {h: v for h, v in zip(header, r) if h}
+            nama = str(d.get("nama") or "").strip()
+            if not nama:
+                continue
+            nm_cabang = str(d.get("cabang") or "").strip()
+            b = cabang_peta.get(_k(nm_cabang)) if nm_cabang else None
+            if not b and branch_id:
+                b = db.query(Branch).get(branch_id)
+            if not b:
+                tak_ada_cabang.add(nm_cabang or "(kosong)")
+                lewat += 1
+                continue
+            sl = db.query(Sales).filter_by(name=nama, branch_id=b.id).first()
+            status = str(d.get("status") or "TEAM INTI").strip() or "TEAM INTI"
+            alias = str(d.get("alias") or "").strip()
+            if sl:
+                sl.status_karyawan, sl.aliases, sl.active = status, alias, True
+                ubah += 1
+            else:
+                db.add(Sales(name=nama, branch_id=b.id, status_karyawan=status,
+                             aliases=alias, active=True))
+                baru += 1
+        db.commit()
+        pesan = f"Impor selesai: {baru} sales baru, {ubah} diperbarui"
+        if lewat:
+            pesan += (f", {lewat} dilewati karena cabangnya tidak dikenali "
+                      f"({', '.join(sorted(tak_ada_cabang)[:5])})")
+    except Exception as e:
+        pesan = f"Impor gagal: {e}"
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+    return RedirectResponse(f"/master/sales?pesan={pesan.replace(' ', '+')}", 303)
+
+
+@app.get("/master/sales/contoh.xlsx")
+def master_sales_contoh(request: Request):
+    """Berkas contoh berisi kolom yang dikenali beserta data cabang yang ada."""
+    require(request, [ROLE_ADMIN, ROLE_ARM])
+    db = db_()
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sales"
+    ws.append(["Nama", "Cabang", "Status Karyawan", "Ejaan Lain"])
+    contoh = db.query(Branch).filter_by(active=True).order_by(Branch.name).first()
+    ws.append(["ALVANDI KLENDER", contoh.name if contoh else "Klender",
+               "TEAM INTI", ""])
+    ws.append(["ARIF FIKRI KLENDER", contoh.name if contoh else "Klender",
+               "TEAM INTI", "Arif Fikri"])
+    for lebar, kolom in zip((28, 18, 18, 26), "ABCD"):
+        ws.column_dimensions[kolom].width = lebar
+    out = os.path.join(tempfile.gettempdir(), "Contoh Impor Master Sales.xlsx")
+    wb.save(out)
+    return FileResponse(out, filename="Contoh Impor Master Sales.xlsx")
 
 
 @app.post("/master/sales/{sid}/aktif")
@@ -505,11 +643,22 @@ async def master_supplier_impor(request: Request, berkas: UploadFile = File(...)
 
 
 # ------------------------------------------------- pengajuan baru
+def _jenis_boleh(u):
+    """Jenis pengajuan yang boleh dibuat oleh peran ini."""
+    return {k: v for k, v in TYPES.items()
+            if u.role in PENGAJU_JENIS.get(k, (ROLE_SL, ROLE_ADMIN))}
+
+
 @app.get("/pengajuan/baru", response_class=HTMLResponse)
 def new_form(request: Request):
-    u = require(request, [ROLE_SL, ROLE_ADMIN])
+    u = require(request, [ROLE_SL, ROLE_ARM, ROLE_ADMIN])
     db = db_()
-    return render(request, "new.html", branches=db.query(Branch).filter_by(active=True).all())
+    jenis = _jenis_boleh(u)
+    if not jenis:
+        raise HTTPException(403, "Peran Anda tidak dapat membuat pengajuan")
+    return render(request, "new.html", jenis_tersedia=jenis,
+                  branches=db.query(Branch).filter_by(active=True)
+                             .order_by(Branch.name).all())
 
 
 @app.post("/pengajuan/baru")
@@ -526,16 +675,23 @@ async def new_submit(request: Request,
                      s_branch: int = Form(0), p_branch: int = Form(0),
                      f_pelanggan: Union[UploadFile, str] = File(None),
                      f_faktur: Union[UploadFile, str] = File(None),
-                     f_accurate: Union[UploadFile, str] = File(None)):
-    u = require(request, [ROLE_SL, ROLE_ADMIN])
+                     f_accurate: Union[UploadFile, str] = File(None),
+                     f_arm: Union[UploadFile, str] = File(None),
+                     prioritas_pct: str = Form("")):
+    u = require(request, [ROLE_SL, ROLE_ARM, ROLE_ADMIN])
     db = db_()
-    if jenis not in ("sales_team", "purchasing") and not blok_tipe:
+    if u.role not in PENGAJU_JENIS.get(jenis, (ROLE_SL, ROLE_ADMIN)):
+        raise HTTPException(403, "Peran Anda tidak dapat mengajukan jenis ini")
+    if jenis not in ("sales_team", "purchasing", "profit_arm") and not blok_tipe:
         raise HTTPException(400, "Tambahkan minimal satu cabang.")
 
     if jenis == "sales_team":
         cabang_utama = s_branch
     elif jenis == "purchasing":
         cabang_utama = p_branch
+    elif jenis == "profit_arm":
+        pusat = db.query(Branch).filter_by(name="Pusat").first()
+        cabang_utama = pusat.id if pusat else (b_asal[0] if b_asal else None)
     else:
         cabang_utama = b_asal[0]
     code = f"INS/{datetime.now():%Y%m}/{secrets.token_hex(3).upper()}"
@@ -557,6 +713,15 @@ async def new_submit(request: Request,
             return t.name
 
     nama_cabang = {b.id: b.name for b in db.query(Branch).all()}
+
+    prioritas = (float(prioritas_pct.replace(",", "."))
+                 if prioritas_pct.strip() else None)
+    goals = []
+    for i, nm in enumerate(goal_nama):
+        nilai = goal_pct[i].strip() if i < len(goal_pct) else ""
+        goals.append({"nama": nm.strip(),
+                      "pencapaian": float(nilai.replace(",", ".")) if nilai else None})
+
     blok_list, temps = [], []
     try:
         if jenis == "sales_team":
@@ -577,6 +742,22 @@ async def new_submit(request: Request,
                 sub.note = ("Nama penjual berikut ada di data tapi belum terdaftar di "
                             "Master Sales, jadi transaksinya tidak dihitung: "
                             + ", ".join(hasil["nama_tak_dikenal"][:15]))
+            db.commit()
+            return RedirectResponse(f"/pengajuan/{sub.id}", 303)
+
+        if jenis == "profit_arm":
+            p1 = await simpan(f_arm, "Laporan Keuangan MGI")
+            temps.append(p1)
+            daftar = [{"nama": b.name, "ikut": bool(b.hitung_arm)}
+                      for b in db.query(Branch).filter_by(active=True)
+                                 .order_by(Branch.name).all()]
+            hasil = calc_arm.hitung_arm(p1, bulan, tahun, daftar,
+                                        laba_ditahan_pct, prioritas, goals)
+            sub.total_amount = hasil["total"]
+            sub.data_json = json.dumps(hasil, default=str)
+            if hasil["cabang_tak_ketemu"]:
+                sub.note = ("Sheet untuk cabang berikut tidak ditemukan di file: "
+                            + ", ".join(hasil["cabang_tak_ketemu"]))
             db.commit()
             return RedirectResponse(f"/pengajuan/{sub.id}", 303)
 
@@ -608,11 +789,6 @@ async def new_submit(request: Request,
                              "mutasi_bulan": mut_bulan[i], "mutasi_tahun": mut_tahun[i]})
             blok_list.append(blok)
 
-        goals = []
-        for i, nm in enumerate(goal_nama):
-            nilai = goal_pct[i].strip() if i < len(goal_pct) else ""
-            goals.append({"nama": nm.strip(),
-                          "pencapaian": float(nilai.replace(",", ".")) if nilai else None})
         hasil = calc.hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct, goals)
         sub.total_amount = hasil["total"]
         sub.data_json = json.dumps(hasil, default=str)
@@ -654,7 +830,7 @@ def do_submit(request: Request, sid: int):
     s = db.query(Submission).get(sid)
     if s.status != ST_DRAFT:
         raise HTTPException(400, "Pengajuan sudah dikirim")
-    s.status = ST_WAIT_ARM
+    s.status = alur(s.type)[0]
     db.add(Approval(submission_id=s.id, user_id=u.id, role=u.role, action="submit",
                     qr_token=secrets.token_urlsafe(12)))
     db.commit()
@@ -674,7 +850,8 @@ def do_action(request: Request, sid: int, aksi: str = Form(...), catatan: str = 
         act = "reject"
     else:
         act = "approve"
-        s.status = STATUS_FLOW[STATUS_FLOW.index(s.status) + 1]
+        urut = alur(s.type)
+        s.status = urut[urut.index(s.status) + 1]
     db.add(Approval(submission_id=s.id, user_id=u.id, role=u.role, action=act,
                     note=catatan, qr_token=token))
     db.commit()
@@ -712,6 +889,46 @@ def download_docx(request: Request, sid: int):
     return FileResponse(out, media_type=MIME_DOCX,
                         headers={"Content-Disposition": disposisi,
                                  "X-Content-Type-Options": "nosniff"})
+
+
+@app.post("/pengajuan/unduh-massal")
+def unduh_massal(request: Request, sid: list[int] = Form([])):
+    """Kumpulkan dokumen Word beberapa pengajuan menjadi satu berkas .zip."""
+    u = require(request, [ROLE_ARM, ROLE_CEO, ROLE_FINANCE, ROLE_ADMIN])
+    db = db_()
+    if not sid:
+        raise HTTPException(400, "Tidak ada pengajuan yang dipilih")
+
+    daftar = (db.query(Submission).filter(Submission.id.in_(sid))
+                .order_by(Submission.branch_id, Submission.id).all())
+    if not daftar:
+        raise HTTPException(404, "Pengajuan tidak ditemukan")
+
+    import zipfile
+    zip_path = os.path.join(tempfile.gettempdir(),
+                            f"Pengajuan Insentif {datetime.now():%Y%m%d-%H%M%S}.zip")
+    dipakai = set()
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for s in daftar:
+            hasil = json.loads(s.data_json or "{}")
+            tmp = os.path.join(tempfile.gettempdir(),
+                               s.code.replace("/", "_") + ".docx")
+            docgen.buat_dokumen(s, hasil, s.approvals, BASE_URL, tmp)
+            nama = (f"{docgen.BULAN[s.period_month]} {s.period_year} - "
+                    f"{s.branch.name if s.branch else '-'} - "
+                    f"{TYPES[s.type]['label']}.docx")
+            nama = "".join(c if (c.isalnum() or c in " .-_") else "-" for c in nama)
+            asli, n = nama, 2
+            while nama in dipakai:
+                nama = asli.replace(".docx", f" ({n}).docx")
+                n += 1
+            dipakai.add(nama)
+            z.write(tmp, nama)
+
+    disposisi = (f'attachment; filename="{os.path.basename(zip_path)}"; '
+                 f"filename*=UTF-8''{quote(os.path.basename(zip_path))}")
+    return FileResponse(zip_path, media_type="application/zip",
+                        headers={"Content-Disposition": disposisi})
 
 
 @app.get("/verify/{token}", response_class=HTMLResponse)

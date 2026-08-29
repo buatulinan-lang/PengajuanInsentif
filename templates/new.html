@@ -6,7 +6,7 @@
 <div class="grid">
 <div><label>Jenis Pengajuan</label>
 <select name="jenis" id="jenis" style="width:100%" onchange="ganti()">
-{% for k,v in TYPES.items() %}<option value="{{ k }}">{{ v.label }}</option>{% endfor %}
+{% for k,v in jenis_tersedia.items() %}<option value="{{ k }}">{{ v.label }}</option>{% endfor %}
 </select></div>
 <div><label>Nama Pengaju</label>
 <input name="nama" value="{{ me.full_name }}" style="width:100%"></div>
@@ -28,6 +28,24 @@ cabang lama &mdash; pengali proporsinya dihitung otomatis dari bulan efektif mut
 <p style="margin-bottom:0">
 <button type="button" class="sec" onclick="tambah('tunggal')">+ Cabang tunggal</button>
 <button type="button" class="sec" onclick="tambah('rotasi')">+ Rotasi cabang</button></p>
+</div>
+
+<div class="card" id="bagian-arm" style="display:none">
+<h2>Laporan Keuangan Seluruh Cabang</h2>
+<p class="mut" style="margin-top:-8px">Unggah satu file Laporan Keuangan MGI berisi
+seluruh cabang (tiap cabang satu sheet). Laba bersih tiap cabang dihitung dengan cara
+yang sama seperti Insentif Store Leader, lalu dijumlahkan. Cabang yang ditandai
+tidak ikut hitung ARM di Master Cabang dikecualikan.</p>
+<div class="grid">
+<div><label>Laporan Keuangan MGI (.xlsx)</label>
+  <input type="file" name="f_arm" accept=".xlsx,.xlsm"></div>
+<div><label>Pencapaian Target Prioritas (%)</label>
+  <input name="prioritas_pct" type="number" step="0.01" style="width:100%"
+         placeholder="mis. 95">
+  <span class="mut" style="font-size:12px">&ge;100%&nbsp;&rarr;&nbsp;100% &middot;
+  &gt;90%&nbsp;&rarr;&nbsp;80% &middot; &gt;80%&nbsp;&rarr;&nbsp;70% &middot;
+  &gt;70%&nbsp;&rarr;&nbsp;60% &middot; &le;70%&nbsp;&rarr;&nbsp;50%</span></div>
+</div>
 </div>
 
 <div class="card" id="bagian-goal">
@@ -145,12 +163,14 @@ function tambah(tipe){
 function ganti(){
   const j = document.getElementById('jenis').value;
   const sales = (j === 'sales_team'), purc = (j === 'purchasing');
-  const profit = !sales && !purc;
+  const arm = (j === 'profit_arm');
+  const profit = !sales && !purc && !arm;
   document.getElementById('bagian-profit').style.display     = profit ? '' : 'none';
   document.getElementById('bagian-sales').style.display      = sales  ? '' : 'none';
   document.getElementById('bagian-purchasing').style.display = purc   ? '' : 'none';
-  document.getElementById('isian-laba').style.display        = profit ? '' : 'none';
-  document.getElementById('bagian-goal').style.display       = profit ? '' : 'none';
+  document.getElementById('bagian-arm').style.display        = arm ? '' : 'none';
+  document.getElementById('isian-laba').style.display     = (profit || arm) ? '' : 'none';
+  document.getElementById('bagian-goal').style.display    = (profit || arm) ? '' : 'none';
   // berkas hanya wajib pada bagian yang sedang tampil
   document.querySelectorAll('#blok input[type=file][name=excel_asal]')
     .forEach(i => i.required = profit);
@@ -160,6 +180,8 @@ function ganti(){
     .forEach(i => i.required = sales);
   document.querySelectorAll('#bagian-purchasing input[type=file]')
     .forEach(i => i.required = purc);
+  document.querySelectorAll('#bagian-arm input[type=file]')
+    .forEach(i => i.required = arm);
 }
 
 tambah('tunggal');

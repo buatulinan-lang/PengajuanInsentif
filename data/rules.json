@@ -276,5 +276,81 @@
         "pengali_pct": 25
       }
     ]
+  },
+  "profit_arm": {
+    "laba_ditahan_pct_default": 7,
+    "matriks": [
+      {
+        "laba_min": 40000000,
+        "insentif": 350000
+      },
+      {
+        "laba_min": 80000000,
+        "insentif": 700000
+      },
+      {
+        "laba_min": 120000000,
+        "insentif": 1400000
+      },
+      {
+        "laba_min": 160000000,
+        "insentif": 2450000
+      },
+      {
+        "laba_min": 200000000,
+        "insentif": 2800000
+      },
+      {
+        "laba_min": 240000000,
+        "insentif": 4200000
+      },
+      {
+        "laba_min": 280000000,
+        "insentif": 5600000
+      },
+      {
+        "laba_min": 320000000,
+        "insentif": 7700000
+      },
+      {
+        "laba_min": 400000000,
+        "insentif": 9800000
+      },
+      {
+        "laba_min": 480000000,
+        "insentif": 11900000
+      },
+      {
+        "laba_min": 540000000,
+        "insentif": 14000000
+      }
+    ],
+    "pengali_target_prioritas": [
+      {
+        "pencapaian_min": 100,
+        "pengali_pct": 100,
+        "label": ">= 100%"
+      },
+      {
+        "pencapaian_min": 90,
+        "pengali_pct": 80,
+        "label": "> 90% - < 100%"
+      },
+      {
+        "pencapaian_min": 80,
+        "pengali_pct": 70,
+        "label": "> 80% - 90%"
+      },
+      {
+        "pencapaian_min": 70,
+        "pengali_pct": 60,
+        "label": "> 70% - 80%"
+      },
+      {
+        "pencapaian_min": 0,
+        "pengali_pct": 50,
+        "label": "<= 70%"
+      }
+    ]
   }
 }

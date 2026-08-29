@@ -250,15 +250,18 @@ def _penutup_ttd(doc, sub, approvals, base_url):
         if a.action in ("submit", "approve"):
             oleh[a.role] = a
 
-    kolom = [
-        ("Diajukan oleh,", "store_leader"),
-        ("Diperiksa oleh,", "arm"),
-        ("Disetujui oleh,", "ceo"),
-        ("Diverifikasi oleh,", "finance"),
-    ]
-    t = doc.add_table(rows=4, cols=4)
+    if sub.type == "profit_arm":
+        kolom = [("Diajukan oleh,", "arm"),
+                 ("Disetujui oleh,", "ceo"),
+                 ("Disetujui oleh,", "finance")]
+    else:
+        kolom = [("Diajukan oleh,", "store_leader"),
+                 ("Diperiksa oleh,", "arm"),
+                 ("Disetujui oleh,", "ceo"),
+                 ("Diverifikasi oleh,", "finance")]
+    t = doc.add_table(rows=4, cols=len(kolom))
     t.autofit = False
-    lebar = Cm(4.15)
+    lebar = Cm(16.6 / len(kolom))
 
     for i, (label, peran) in enumerate(kolom):
         a = oleh.get(peran)
@@ -338,18 +341,7 @@ def _tabel_profit(doc, hasil):
                   "dikurangi Laba Ditahan. Besaran insentif mengikuti matriks "
                   "TAP CEO yang berlaku.")
 
-    diisi = [g for g in hasil.get("goal", []) if g.get("diisi")]
-    if diisi:
-        _paragraf(doc, spasi_setelah=6)
-        _paragraf(doc, "Pencapaian Goal", 10, True, spasi_setelah=4, warna=NAVY)
-        lg = [8.6, 4.0, 4.0]
-        tg = _tabel(doc, ["Goal", "Pencapaian", "Status"], lg, 8.5)
-        for g in diisi:
-            _baris(tg, [g["nama"] + (" (utama)" if g["utama"] else ""),
-                        f"{g['pencapaian']}%",
-                        "Tercapai" if g["tercapai"] else
-                        f"Di bawah {hasil.get('ambang_goal_pct', 98)}%"],
-                   lg, 8.5, kanan={1})
+    _tabel_goal(doc, hasil)
 
 
 def _tabel_sales(doc, hasil):
@@ -407,6 +399,65 @@ def _tabel_purchasing(doc, hasil):
                lebar, 9, True, KREM_MUDA, kanan={1})
 
 
+def _tabel_arm(doc, hasil):
+    judul = ["Cabang", "Omzet", "Laba Bersih Setelah Prepaid",
+             "Laba Ditahan", "Laba Bersih"]
+    lebar = [4.2, 3.3, 3.6, 2.8, 3.3]
+    t = _tabel(doc, judul, lebar)
+    kanan = {1, 2, 3, 4}
+    for b in hasil.get("baris", []):
+        nama = b["cabang"] + ("" if b["ikut"] else "  (tidak dihitung)")
+        if b.get("galat"):
+            _baris(t, [nama, "—", "—", "—", "—"], lebar, 8, kanan=kanan)
+            continue
+        _baris(t, [nama, angka(b["omzet"]), angka(b["laba_setelah_prepaid"]),
+                   angka(b["laba_ditahan"]), angka(b["laba_bersih"])],
+               lebar, 8.5, arsir=None if b["ikut"] else KREM_MUDA, kanan=kanan)
+    _baris_lebar(t, "TOTAL LABA BERSIH SELURUH CABANG",
+                 angka(hasil.get("total_laba_bersih", 0)), lebar, 9, True, KREM)
+    _catatan(doc, f"Laba Bersih tiap cabang = Total Laba Bersih Setelah Prepaid "
+                  f"dikurangi Laba Ditahan {hasil.get('laba_ditahan_pct', 7)}%. "
+                  f"Cabang bertanda \u201ctidak dihitung\u201d tidak menambah total.")
+
+    _paragraf(doc, spasi_setelah=8)
+    _paragraf(doc, "Perhitungan Insentif", 10, True, spasi_setelah=4, warna=NAVY)
+    lg = [10.6, 6.0]
+    tg = _tabel(doc, ["Uraian", "Nilai"], lg, 9)
+    _baris(tg, ["Total laba bersih seluruh cabang",
+                angka(hasil["total_laba_bersih"])], lg, 9, kanan={1})
+    _baris(tg, [f"Baris matriks (dibulatkan ke bawah)",
+                angka(hasil["baris_matriks"] or 0)], lg, 9, kanan={1})
+    _baris(tg, ["Nominal insentif menurut matriks",
+                angka(hasil["nominal_matriks"])], lg, 9, kanan={1})
+    pp = hasil.get("pencapaian_prioritas")
+    _baris(tg, [f"Pencapaian Target Prioritas"
+                f"{'' if pp is None else f' ({pp}%)'} — {hasil['label_pengali']}",
+                f"{hasil['pengali_pct']}%"], lg, 9, kanan={1})
+    _baris(tg, ["Insentif setelah pengali", angka(hasil["setelah_pengali"])],
+           lg, 9, kanan={1})
+    for p in hasil.get("rincian_potongan", []):
+        _baris(tg, [f"Pengurang {p['pct']:.0f}% — {p['nama']}",
+                    "− " + angka(p["nilai"])], lg, 8.5, arsir=KREM_MUDA, kanan={1})
+    _baris(tg, ["INSENTIF YANG DIDAPAT", angka(hasil["total"])], lg, 10, True,
+           KREM, kanan={1})
+
+
+def _tabel_goal(doc, hasil):
+    diisi = [g for g in hasil.get("goal", []) if g.get("diisi")]
+    if not diisi:
+        return
+    _paragraf(doc, spasi_setelah=6)
+    _paragraf(doc, "Pencapaian Goal", 10, True, spasi_setelah=4, warna=NAVY)
+    lg = [8.6, 4.0, 4.0]
+    tg = _tabel(doc, ["Goal", "Pencapaian", "Status"], lg, 8.5)
+    for g in diisi:
+        _baris(tg, [g["nama"] + (" (utama)" if g["utama"] else ""),
+                    f"{g['pencapaian']}%",
+                    "Tercapai" if g["tercapai"] else
+                    f"Di bawah {hasil.get('ambang_goal_pct', 98)}%"],
+               lg, 8.5, kanan={1})
+
+
 def _catatan(doc, isi):
     _paragraf(doc, isi, 7.5, spasi_setelah=2, warna=ABU, italic=True)
 
@@ -416,6 +467,7 @@ JUDUL = {
     "profit_sl": "Pengajuan Insentif Profit Store Leader",
     "sales_team": "Pengajuan Insentif Sales dan Team",
     "purchasing": "Pengajuan Insentif Purchasing",
+    "profit_arm": "Pengajuan Insentif Profit ARM",
 }
 
 
@@ -438,6 +490,13 @@ def buat_dokumen(sub, hasil, approvals, base_url, out_path):
                    f"maka dengan ini kami mengajukan Komisi Penjualan Member Sales "
                    f"dan Team MFlash {sub.branch.name} senilai {total} berdasarkan "
                    f"data penjualan periode tersebut, sesuai ketetapan yang berlaku.")
+    elif sub.type == "profit_arm":
+        kepada = "Finance Manager"
+        tembusan = "CEO Madinah Group Indonesia, CEO MFlash, HR Manager"
+        kalimat = (f"Sehubungan dengan telah berakhirnya periode bulan {periode}, "
+                   f"maka dengan ini saya mengajukan Insentif Profit Area Manager "
+                   f"MFlash senilai {total} berdasarkan laporan keuangan seluruh "
+                   f"cabang pada periode tersebut, sesuai ketetapan yang berlaku.")
     elif sub.type == "purchasing":
         kepada = "Finance Manager"
         tembusan = "CEO Madinah Group Indonesia, Area Operation Manager"
@@ -459,6 +518,9 @@ def buat_dokumen(sub, hasil, approvals, base_url, out_path):
         _tabel_sales(doc, hasil)
     elif sub.type == "purchasing":
         _tabel_purchasing(doc, hasil)
+    elif sub.type == "profit_arm":
+        _tabel_arm(doc, hasil)
+        _tabel_goal(doc, hasil)
     else:
         _tabel_profit(doc, hasil)
 

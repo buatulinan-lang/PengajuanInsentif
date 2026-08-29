@@ -7,13 +7,15 @@ dokumen Word saat cabang dipilih pada pengajuan.</p>
 {{ pesan }}</p>{% endif %}
 <table>
 <tr><th>Cabang</th><th>Nama di Header</th><th>Alamat</th><th>Kota</th>
-<th>Status</th><th></th></tr>
+<th>Hitung ARM</th><th>Status</th><th></th></tr>
 {% for b in items %}
 <tr>
 <td><b>{{ b.name }}</b></td>
 <td>{{ b.display_name or '' }}</td>
 <td style="max-width:380px">{{ b.address or '' }}</td>
 <td>{{ b.city or '' }}</td>
+<td>{% if b.hitung_arm %}<span class="badge b-ceo">Ikut</span>
+    {% else %}<span class="badge b-draft">Tidak</span>{% endif %}</td>
 <td>{% if b.active %}<span class="badge b-done">Aktif</span>
     {% else %}<span class="badge b-draft">Nonaktif</span>{% endif %}</td>
 <td class="right" style="white-space:nowrap">
@@ -40,6 +42,12 @@ dokumen Word saat cabang dipilih pada pengajuan.</p>
 <div><label>Kota (untuk tanggal surat)</label>
   <input name="city" style="width:100%" placeholder="Jakarta"
          value="{{ edit.city if edit else 'Jakarta' }}"></div>
+</div>
+<div style="margin-top:12px">
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+<input type="checkbox" name="hitung_arm" value="1" style="width:16px;height:16px"
+ {% if not edit or edit.hitung_arm %}checked{% endif %}>
+Ikut dihitung pada total laba bersih Insentif Profit ARM</label>
 </div>
 <label>Alamat Lengkap</label>
 <textarea name="address" rows="2" style="width:100%"

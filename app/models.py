@@ -47,6 +47,12 @@ ST_WAIT_FIN   = "menunggu_finance"
 ST_DONE       = "done"
 ST_REJECTED   = "ditolak"
 STATUS_FLOW = [ST_WAIT_ARM, ST_WAIT_CEO, ST_WAIT_FIN, ST_DONE]
+# Pengajuan insentif ARM diajukan oleh ARM sendiri, jadi tahap approval ARM dilewati.
+ALUR_KHUSUS = {"profit_arm": [ST_WAIT_CEO, ST_WAIT_FIN, ST_DONE]}
+
+
+def alur(tipe):
+    return ALUR_KHUSUS.get(tipe, STATUS_FLOW)
 STATUS_LABELS = {
     ST_DRAFT: "Draft", ST_WAIT_ARM: "Proses Approval ARM",
     ST_WAIT_CEO: "Proses Approval CEO", ST_WAIT_FIN: "Proses Pencairan Finance",
@@ -60,7 +66,10 @@ TYPES = {
     "profit_sl":  {"label": "Insentif Profit Store Leader", "template": "profit_store_leader.docx"},
     "sales_team": {"label": "Insentif Sales & Team",        "template": "sales_team.docx"},
     "purchasing": {"label": "Insentif Purchasing",          "template": "purchasing.docx"},
+    "profit_arm": {"label": "Insentif Profit ARM",          "template": "profit_arm.docx"},
 }
+# Jenis yang hanya boleh diajukan peran tertentu
+PENGAJU_JENIS = {"profit_arm": (ROLE_ARM, ROLE_ADMIN)}
 
 
 class Branch(Base):
@@ -71,6 +80,7 @@ class Branch(Base):
     address = Column(Text)                               # dipakai di header Word
     city = Column(String, default="Jakarta")             # untuk "Jakarta, 6 Agustus 2026"
     active = Column(Boolean, default=True)
+    hitung_arm = Column(Boolean, default=True)           # ikut total laba bersih ARM
 
 
 class User(Base):
