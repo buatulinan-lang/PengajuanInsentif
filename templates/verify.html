@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block body %}
+<div class="card" style="max-width:520px;margin:60px auto">
+{% if a %}<h1>Tanda tangan sah ✓</h1>
+<p><b>{{ a.user.full_name }}</b> — {{ ROLE_LABELS[a.role] }}<br>
+Aksi: {{ a.action }}<br>
+Waktu: {{ a.created_at.strftime('%d %B %Y %H:%M') }}<br>
+Dokumen: {{ a.submission.code }} — {{ TYPES[a.submission.type].label }}<br>
+Cabang: {{ a.submission.branch.name if a.submission.branch }}</p>
+{% else %}<h1>Kode tidak dikenali</h1>
+<p class="mut">QR ini tidak terdaftar pada sistem.</p>{% endif %}</div>
+{% endblock %}
