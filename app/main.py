@@ -93,13 +93,18 @@ def db_(): return SessionLocal()
 async def penyiapan(request: Request, call_next):
     siapkan_sekali()
     if SIAP["galat"] and request.url.path not in ("/health", "/diagnosa"):
+        galat = SIAP["galat"]
+        if "OperationalError" in galat or "could not connect" in galat.lower():
+            pesan = ("Aplikasi tidak bisa terhubung ke database. Periksa "
+                     "DATABASE_URL di Environment Variables, lalu Redeploy. "
+                     "Rinciannya ada di /diagnosa.")
+        else:
+            pesan = ("Penyiapan database gagal. Buka /diagnosa untuk melihat "
+                     "pesan aslinya. Bila muncul nama kolom yang tidak dikenal, "
+                     "cukup Redeploy sekali lagi agar struktur tabel diperbarui.")
         return tpl.TemplateResponse(
             request, "error.html",
-            {"me": None, "kode": 500,
-             "pesan": "Aplikasi tidak bisa terhubung ke database. "
-                      "Periksa DATABASE_URL di pengaturan Environment Variables, "
-                      "lalu Redeploy. Rinciannya ada di /diagnosa."},
-            status_code=500)
+            {"me": None, "kode": 500, "pesan": pesan}, status_code=500)
     return await call_next(request)
 
 

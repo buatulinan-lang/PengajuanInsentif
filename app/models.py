@@ -165,5 +165,50 @@ class Attachment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+def _tipe_sql(kolom):
+    """Nama tipe kolom untuk perintah ALTER TABLE."""
+    try:
+        return kolom.type.compile(ENGINE.dialect)
+    except Exception:
+        return "TEXT"
+
+
+def migrasi():
+    """Tambahkan kolom yang belum ada pada tabel lama.
+
+    create_all() hanya membuat tabel baru, tidak mengubah tabel yang sudah ada.
+    Tanpa langkah ini, menambah kolom pada model membuat aplikasi gagal di
+    server yang databasenya sudah terisi. Hanya menambah kolom, tidak pernah
+    menghapus atau mengubah data.
+    """
+    from sqlalchemy import inspect, text
+
+    insp = inspect(ENGINE)
+    tabel_ada = set(insp.get_table_names())
+    ditambah = []
+    with ENGINE.begin() as conn:
+        for tabel in Base.metadata.sorted_tables:
+            if tabel.name not in tabel_ada:
+                continue
+            punya = {c["name"] for c in insp.get_columns(tabel.name)}
+            for kolom in tabel.columns:
+                if kolom.name in punya:
+                    continue
+                sql = f'ALTER TABLE "{tabel.name}" ADD COLUMN "{kolom.name}" {_tipe_sql(kolom)}'
+                bawaan = getattr(kolom.default, "arg", None)
+                if isinstance(bawaan, bool):
+                    sql += f" DEFAULT {'TRUE' if bawaan else 'FALSE'}"
+                elif isinstance(bawaan, (int, float)):
+                    sql += f" DEFAULT {bawaan}"
+                elif isinstance(bawaan, str):
+                    sql += " DEFAULT '" + bawaan.replace("'", "''") + "'"
+                conn.execute(text(sql))
+                ditambah.append(f"{tabel.name}.{kolom.name}")
+    if ditambah:
+        print("migrasi: kolom ditambahkan ->", ", ".join(ditambah))
+    return ditambah
+
+
 def init_db():
     Base.metadata.create_all(ENGINE)
+    migrasi()
