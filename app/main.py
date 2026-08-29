@@ -14,18 +14,33 @@ from app import calc, calc_sales, calc_purchasing, docgen
 
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
 
-# Siapkan tabel dan data awal. Aman dijalankan berulang: seed hanya menambah
-# yang belum ada. Set SKIP_SEED=1 bila ingin melewatinya.
-try:
-    init_db()
-    if os.environ.get("SKIP_SEED") != "1":
-        import seed  # noqa: F401
-except Exception as _e:
-    print("penyiapan awal dilewati:", _e)
+SIAP = {"sudah": False, "galat": None}
+
+
+def siapkan_sekali():
+    """Buat tabel dan data awal saat permintaan pertama, bukan saat impor.
+
+    Dijalankan di sini (bukan di tingkat modul) supaya kesalahan konfigurasi
+    database muncul sebagai halaman pesan yang terbaca, bukan fungsi yang gagal
+    start tanpa keterangan.
+    """
+    if SIAP["sudah"]:
+        return
+    try:
+        init_db()
+        if os.environ.get("SKIP_SEED") != "1":
+            import seed  # noqa: F401
+        SIAP["galat"] = None
+    except Exception as e:
+        SIAP["galat"] = f"{type(e).__name__}: {e}"
+        print("PENYIAPAN GAGAL:", SIAP["galat"], flush=True)
+    SIAP["sudah"] = True
+
 
 app = FastAPI(title="Aplikasi Pengajuan Insentif MFlash")
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get("SECRET", "ganti-secret-ini"))
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+if os.path.isdir(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 tpl = Jinja2Templates(directory=TEMPLATES_DIR)
 tpl.env.globals.update(STATUS_LABELS=STATUS_LABELS, ROLE_LABELS=ROLE_LABELS,
                        TYPES=TYPES, BULAN=docgen.BULAN, rupiah=docgen.rupiah,
@@ -33,6 +48,48 @@ tpl.env.globals.update(STATUS_LABELS=STATUS_LABELS, ROLE_LABELS=ROLE_LABELS,
 
 
 def db_(): return SessionLocal()
+
+
+@app.middleware("http")
+async def penyiapan(request: Request, call_next):
+    siapkan_sekali()
+    if SIAP["galat"] and request.url.path not in ("/health", "/diagnosa"):
+        return tpl.TemplateResponse(
+            request, "error.html",
+            {"me": None, "kode": 500,
+             "pesan": "Aplikasi tidak bisa terhubung ke database. "
+                      "Periksa DATABASE_URL di pengaturan Environment Variables, "
+                      "lalu Redeploy. Rinciannya ada di /diagnosa."},
+            status_code=500)
+    return await call_next(request)
+
+
+@app.get("/diagnosa")
+def diagnosa():
+    """Ringkasan kesehatan aplikasi. Tidak menampilkan nilai rahasia apa pun."""
+    siapkan_sekali()
+    url = os.environ.get("DATABASE_URL", "")
+    info = {
+        "database_url_terisi": bool(url),
+        "database": ("postgres" if "postgres" in url else
+                     ("sqlite (DATABASE_URL belum diisi)" if not url else "lain")),
+        "pooler": ("transaction 6543" if ":6543/" in url else
+                   ("session 5432" if ":5432/" in url else "-")),
+        "secret_terisi": bool(os.environ.get("SECRET")),
+        "base_url": BASE_URL,
+        "folder_template": os.path.isdir(TEMPLATES_DIR),
+        "folder_template_docx": os.path.isdir(docgen.DOC_TEMPLATES_DIR),
+        "berkas_rules": os.path.isfile(calc.RULES_PATH),
+        "penyiapan_galat": SIAP["galat"],
+    }
+    try:
+        db = db_()
+        info["jumlah_cabang"] = db.query(Branch).count()
+        db.close()
+    except Exception as e:
+        info["kesalahan_database"] = f"{type(e).__name__}: {e}"
+    return info
+
 
 
 def render(request, name, **ctx):
