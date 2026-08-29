@@ -211,13 +211,71 @@ def hitung_blok(blok, bulan, tahun, laba_ditahan_pct):
     }
 
 
-def hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct=None):
-    """Hitung seluruh blok cabang pada satu pengajuan."""
+def hitung_pengurang_goal(goals):
+    """Potongan proporsional bila pencapaian goal tidak memenuhi ambang.
+
+    goals[0] adalah Goal Utama, sisanya goal pendamping. Aturannya:
+      - Goal Utama tidak tercapai            -> potongan 10%
+      - 1 goal pendamping tidak tercapai     -> tambah potongan 5%
+      - lebih dari 1 tidak tercapai          -> tambah potongan 10%
+    """
+    ru = load_rules()["profit_sl"]["pengurang_goal"]
+    ambang = ru["ambang_tercapai_pct"]
+    rinci, pct = [], 0.0
+
+    for i, g in enumerate(goals or []):
+        nilai = g.get("pencapaian")
+        tercapai = nilai is not None and float(nilai) >= ambang
+        rinci.append({"nama": g.get("nama") or f"Goal {i+1}",
+                      "pencapaian": None if nilai is None else round(float(nilai), 2),
+                      "utama": i == 0, "tercapai": tercapai,
+                      "diisi": nilai is not None})
+
+    diisi = [g for g in rinci if g["diisi"]]
+    if not diisi:
+        return {"goal": rinci, "potongan_pct": 0.0, "rincian_potongan": []}
+
+    potongan = []
+    utama = rinci[0] if rinci else None
+    if utama and utama["diisi"] and not utama["tercapai"]:
+        pct += ru["potongan_goal_utama_pct"]
+        potongan.append({"nama": f"Goal Utama ({utama['nama']}) tidak tercapai",
+                         "pct": ru["potongan_goal_utama_pct"]})
+
+    meleset = [g for g in rinci[1:] if g["diisi"] and not g["tercapai"]]
+    if len(meleset) == 1:
+        pct += ru["potongan_satu_pendamping_pct"]
+        potongan.append({"nama": f"1 goal pendamping tidak tercapai "
+                                 f"({meleset[0]['nama']})",
+                         "pct": ru["potongan_satu_pendamping_pct"]})
+    elif len(meleset) > 1:
+        pct += ru["potongan_lebih_satu_pendamping_pct"]
+        potongan.append({"nama": f"{len(meleset)} goal pendamping tidak tercapai "
+                                 f"({', '.join(g['nama'] for g in meleset)})",
+                         "pct": ru["potongan_lebih_satu_pendamping_pct"]})
+
+    return {"goal": rinci, "potongan_pct": pct, "rincian_potongan": potongan,
+            "ambang_pct": ambang}
+
+
+def hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct=None, goals=None):
+    """Hitung seluruh blok cabang pada satu pengajuan, lalu terapkan pengurang goal."""
     hasil, catatan = [], []
     for i, blok in enumerate(blok_list, 1):
         try:
             hasil.append(hitung_blok(blok, bulan, tahun, laba_ditahan_pct))
         except CalcError as e:
             catatan.append(f"Blok {i}: {e}")
-    return {"blok": hasil, "total": sum(b["total"] for b in hasil),
+
+    subtotal = sum(b["total"] for b in hasil)
+    g = hitung_pengurang_goal(goals)
+    potongan = round(subtotal * g["potongan_pct"] / 100)
+    for p in g.get("rincian_potongan", []):
+        p["nilai"] = round(subtotal * p["pct"] / 100)
+
+    return {"blok": hasil, "subtotal_blok": subtotal,
+            "goal": g["goal"], "potongan_pct": g["potongan_pct"],
+            "rincian_potongan": g.get("rincian_potongan", []),
+            "ambang_goal_pct": g.get("ambang_pct", 98),
+            "potongan": potongan, "total": subtotal - potongan,
             "catatan": catatan}

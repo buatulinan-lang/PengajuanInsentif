@@ -30,6 +30,27 @@ cabang lama &mdash; pengali proporsinya dihitung otomatis dari bulan efektif mut
 <button type="button" class="sec" onclick="tambah('rotasi')">+ Rotasi cabang</button></p>
 </div>
 
+<div class="card" id="bagian-goal">
+<h2>Pencapaian Goal</h2>
+<p class="mut" style="margin-top:-8px">Isi persentase pencapaian bulan ini. Goal yang
+tidak mencapai <b>98%</b> memotong insentif: Goal Utama memotong 10%, satu goal
+pendamping meleset menambah 5%, lebih dari satu menambah 10%. Kosongkan bila
+tidak ada datanya.</p>
+<div class="grid">
+{% for label, bawaan in [('Goal Utama', 'Gross Profit'),
+                         ('Goal Pendamping 1', 'Tingkat Kepuasan Pelanggan'),
+                         ('Goal Pendamping 2', 'Omset Aksesoris')] %}
+<div>
+  <label>{{ label }}</label>
+  <input name="goal_nama" value="{{ bawaan }}" style="width:100%"
+         placeholder="nama goal">
+  <input name="goal_pct" type="number" step="0.01" style="width:100%;margin-top:6px"
+         placeholder="pencapaian %">
+</div>
+{% endfor %}
+</div>
+</div>
+
 <div class="card" id="bagian-sales" style="display:none">
 <h2>Data Penjualan</h2>
 <p class="mut" style="margin-top:-8px">Unggah dua file ekspor apa adanya &mdash; aplikasi yang
@@ -129,6 +150,7 @@ function ganti(){
   document.getElementById('bagian-sales').style.display      = sales  ? '' : 'none';
   document.getElementById('bagian-purchasing').style.display = purc   ? '' : 'none';
   document.getElementById('isian-laba').style.display        = profit ? '' : 'none';
+  document.getElementById('bagian-goal').style.display       = profit ? '' : 'none';
   // berkas hanya wajib pada bagian yang sedang tampil
   document.querySelectorAll('#blok input[type=file][name=excel_asal]')
     .forEach(i => i.required = profit);

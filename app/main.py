@@ -147,7 +147,7 @@ def diagnosa():
         "secret_terisi": bool(os.environ.get("SECRET")),
         "base_url": BASE_URL,
         "folder_template": os.path.isdir(TEMPLATES_DIR),
-        "folder_template_docx": os.path.isdir(docgen.DOC_TEMPLATES_DIR),
+        "logo_tersedia": os.path.isfile(os.path.join(STATIC_DIR, "logo-mflash.png")),
         "berkas_rules": os.path.isfile(calc.RULES_PATH),
         "penyiapan_galat": SIAP["galat"],
     }
@@ -516,6 +516,7 @@ async def new_submit(request: Request,
                      jenis: str = Form(...), nama: str = Form(...),
                      bulan: int = Form(...), tahun: int = Form(...),
                      laba_ditahan_pct: float = Form(7),
+                     goal_nama: list[str] = Form([]), goal_pct: list[str] = Form([]),
                      blok_tipe: list[str] = Form([]),
                      b_asal: list[int] = Form([]), b_tujuan: list[int] = Form([]),
                      mut_bulan: list[int] = Form([]), mut_tahun: list[int] = Form([]),
@@ -606,7 +607,12 @@ async def new_submit(request: Request,
                              "mutasi_bulan": mut_bulan[i], "mutasi_tahun": mut_tahun[i]})
             blok_list.append(blok)
 
-        hasil = calc.hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct)
+        goals = []
+        for i, nm in enumerate(goal_nama):
+            nilai = goal_pct[i].strip() if i < len(goal_pct) else ""
+            goals.append({"nama": nm.strip(),
+                          "pencapaian": float(nilai.replace(",", ".")) if nilai else None})
+        hasil = calc.hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct, goals)
         sub.total_amount = hasil["total"]
         sub.data_json = json.dumps(hasil, default=str)
         if hasil["catatan"]:
@@ -677,18 +683,19 @@ def do_action(request: Request, sid: int, aksi: str = Form(...), catatan: str = 
 # ------------------------------------------------- dokumen word
 @app.get("/pengajuan/{sid}/docx")
 def download_docx(request: Request, sid: int):
-    require(request)
+    u = require(request)
     db = db_()
     s = db.query(Submission).get(sid)
+    if not s:
+        raise HTTPException(404, "Pengajuan tidak ditemukan")
+    if u.role == ROLE_SL and s.submitter_id != u.id:
+        raise HTTPException(403, "Bukan pengajuan Anda")
     hasil = json.loads(s.data_json or "{}")
-    mapping = docgen.build_mapping(s, s.branch, s.submitter, hasil, BASE_URL)
-    qr = [(f"{ROLE_LABELS.get(a.role, a.role)} – {a.user.full_name}\n"
-           f"{a.created_at:%d %b %Y %H:%M}",
-           f"{BASE_URL}/verify/{a.qr_token}", a.role.upper())
-          for a in s.approvals if a.action in ("submit", "approve")]
     out = os.path.join(tempfile.gettempdir(), s.code.replace("/", "_") + ".docx")
-    docgen.render(docgen.sub_template(s), out, mapping, qr)
-    return FileResponse(out, filename=os.path.basename(out))
+    docgen.buat_dokumen(s, hasil, s.approvals, BASE_URL, out)
+    nama = f"{TYPES[s.type]['label']} - {s.branch.name} - " \
+           f"{docgen.BULAN[s.period_month]} {s.period_year}.docx"
+    return FileResponse(out, filename=nama)
 
 
 @app.get("/verify/{token}", response_class=HTMLResponse)

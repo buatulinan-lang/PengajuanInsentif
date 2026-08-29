@@ -159,8 +159,28 @@ Jumlah faktur yang diproses: {{ '{:,}'.format(hasil.jumlah_faktur_diproses) }}.<
 {% endif %}
 </div>
 {% endfor %}
-<div class="card"><table><tr><th>TOTAL INSENTIF YANG DIDAPAT</th>
-<th class="num" style="font-size:16px">{{ rupiah(hasil.total) }}</th></tr></table></div>
+{% if hasil.goal and hasil.goal|selectattr('diisi')|list %}
+<div class="card"><h2>Pencapaian Goal</h2>
+<table>
+<tr><th>Goal</th><th class="num">Pencapaian</th><th>Status</th></tr>
+{% for g in hasil.goal %}{% if g.diisi %}
+<tr><td>{{ g.nama }}{% if g.utama %} <span class="mut">(utama)</span>{% endif %}</td>
+<td class="num">{{ g.pencapaian }}%</td>
+<td>{% if g.tercapai %}<span class="badge b-done">Tercapai</span>
+    {% else %}<span class="badge b-rej">Di bawah {{ hasil.ambang_goal_pct }}%</span>{% endif %}</td>
+</tr>{% endif %}{% endfor %}
+</table></div>{% endif %}
+
+<div class="card"><table>
+<tr><td>Subtotal insentif seluruh cabang</td>
+    <td class="num">{{ rupiah(hasil.subtotal_blok) }}</td></tr>
+{% for p in hasil.rincian_potongan %}
+<tr><td>Pengurang {{ p.pct }}% &mdash; {{ p.nama }}</td>
+    <td class="num">&minus; {{ rupiah(p.nilai) }}</td></tr>
+{% endfor %}
+<tr><th>TOTAL INSENTIF YANG DIDAPAT</th>
+<th class="num" style="font-size:16px">{{ rupiah(hasil.total) }}</th></tr>
+</table></div>
 {% endif %}
 
 {% if s.attachments %}

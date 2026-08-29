@@ -205,6 +205,17 @@
           100
         ]
       }
+    },
+    "pengurang_goal": {
+      "ambang_tercapai_pct": 98,
+      "potongan_goal_utama_pct": 10,
+      "potongan_satu_pendamping_pct": 5,
+      "potongan_lebih_satu_pendamping_pct": 10,
+      "nama_goal_bawaan": [
+        "Gross Profit",
+        "Tingkat Kepuasan Pelanggan",
+        "Omset Aksesoris"
+      ]
     }
   },
   "sales_team": {
