@@ -52,44 +52,59 @@ def _num(v):
         return 0.0
 
 
-def _cari_kolom_bulan(ws, bulan):
-    """Kembalikan (kolom_rincian, kolom_total, kolom_persen) untuk bulan ke-n."""
-    target = BULAN_XLS[bulan - 1]
-    for r in range(1, 40):
-        for c in range(1, ws.max_column + 1):
-            if _key(ws.cell(r, c).value) == _key(target):
-                return c, c + 1, c + 2
-    raise CalcError(f"Kolom bulan {target} tidak ditemukan di file Excel.")
+def baca_sheet(path, sheet=None):
+    """Baca satu sheet menjadi daftar baris. Dibuka sekali, dipakai berulang."""
+    wb = load_workbook(path, data_only=True, read_only=True)
+    try:
+        ws = wb[sheet] if sheet else wb[wb.sheetnames[0]]
+        return [r for r in ws.iter_rows(values_only=True)]
+    finally:
+        wb.close()
 
 
-def _cari_baris(ws):
-    """Peta nama internal -> nomor baris, dari label di kolom B."""
+def _cari_kolom_bulan(rows, bulan):
+    """Kembalikan (kolom_rincian, kolom_total, kolom_persen) untuk bulan ke-n.
+
+    Nomor kolom dihitung mulai 1 agar sama dengan penomoran Excel.
+    """
+    target = _key(BULAN_XLS[bulan - 1])
+    for r in rows[:40]:
+        for i, v in enumerate(r):
+            if _key(v) == target:
+                return i + 1, i + 2, i + 3
+    raise CalcError(f"Kolom bulan {BULAN_XLS[bulan - 1]} tidak ditemukan "
+                    f"di file Excel.")
+
+
+def _cari_baris(rows):
+    """Peta nama internal -> indeks baris, dari label di kolom B."""
     hasil, dicari = {}, {k: _key(v) for k, v in BARIS.items()}
-    for r in range(1, ws.max_row + 1):
-        k = _key(ws.cell(r, 2).value)
+    for i, r in enumerate(rows):
+        k = _key(r[1]) if len(r) > 1 else ""
         if not k:
             continue
         for nama, pola in dicari.items():
             if nama not in hasil and k == pola:
-                hasil[nama] = r
+                hasil[nama] = i
     kurang = [BARIS[n] for n in BARIS if n not in hasil]
     if kurang:
         raise CalcError("Baris berikut tidak ditemukan di Excel: " + "; ".join(kurang))
     return hasil
 
 
-def hitung_profit_sl(path, bulan, laba_ditahan_pct=None, sheet=None):
+def hitung_profit_sl(path, bulan, laba_ditahan_pct=None, sheet=None, rows=None):
     rules = load_rules()["profit_sl"]
     if laba_ditahan_pct is None:
         laba_ditahan_pct = rules.get("laba_ditahan_pct_default", 7)
 
-    wb = load_workbook(path, data_only=True)
-    ws = wb[sheet] if sheet else wb[wb.sheetnames[0]]
-    c_rinci, c_total, _ = _cari_kolom_bulan(ws, bulan)
-    baris = _cari_baris(ws)
+    if rows is None:
+        rows = baca_sheet(path, sheet)
+    c_rinci, c_total, _ = _cari_kolom_bulan(rows, bulan)
+    baris = _cari_baris(rows)
 
     def total(nama):
-        return _num(ws.cell(baris[nama], c_total).value)
+        r = rows[baris[nama]]
+        return _num(r[c_total - 1]) if len(r) >= c_total else 0.0
 
     omzet          = total("omzet")
     laba_kotor     = total("laba_kotor")          # sesudah fee teknisi

@@ -149,7 +149,7 @@ button.warn:hover{background:#8C1E17}
   </a>
   <nav>
     <a href="/">Dashboard</a>
-    {% if me.role in ['store_leader','admin'] %}<a href="/pengajuan/baru">Buat Pengajuan</a>{% endif %}
+    {% if me.role in ['store_leader','arm','admin'] %}<a href="/pengajuan/baru">Buat Pengajuan</a>{% endif %}
     {% if me.role in ['admin','arm'] %}<a href="/master/cabang">Cabang</a>
     <a href="/master/sales">Sales</a>
     <a href="/master/supplier">Supplier</a>{% endif %}

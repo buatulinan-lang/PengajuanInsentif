@@ -38,9 +38,21 @@ def hitung_arm(path, bulan, tahun=None, cabang_list=None,
     if laba_ditahan_pct is None:
         laba_ditahan_pct = rules.get("laba_ditahan_pct_default", 7)
 
+    # Buka berkas sekali saja; membuka ulang tiap cabang membuat file besar
+    # (17 sheet) butuh lebih dari satu menit.
     wb = load_workbook(path, data_only=True, read_only=True)
     sheets = wb.sheetnames
-    wb.close()
+    isi = {}
+    try:
+        perlu = {}
+        for c in (cabang_list or []):
+            sheet = next((s for s in sheets if _cocok(s, c["nama"])), None)
+            if sheet:
+                perlu[c["nama"]] = sheet
+        for nama_c, sheet in perlu.items():
+            isi[sheet] = [r for r in wb[sheet].iter_rows(values_only=True)]
+    finally:
+        wb.close()
 
     baris, tak_ketemu = [], []
     total = 0.0
@@ -50,7 +62,8 @@ def hitung_arm(path, bulan, tahun=None, cabang_list=None,
             tak_ketemu.append(c["nama"])
             continue
         try:
-            h = hitung_profit_sl(path, bulan, laba_ditahan_pct, sheet=sheet)
+            h = hitung_profit_sl(path, bulan, laba_ditahan_pct,
+                                 rows=isi.get(sheet))
         except CalcError as e:
             baris.append({"cabang": c["nama"], "sheet": sheet, "ikut": False,
                           "galat": str(e), "omzet": 0, "laba_setelah_prepaid": 0,
