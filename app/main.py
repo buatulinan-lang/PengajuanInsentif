@@ -1,6 +1,7 @@
 import io, json, os, secrets, tempfile
 from datetime import datetime
 from typing import Union
+from urllib.parse import quote
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -681,7 +682,12 @@ def do_action(request: Request, sid: int, aksi: str = Form(...), catatan: str = 
 
 
 # ------------------------------------------------- dokumen word
-@app.get("/pengajuan/{sid}/docx")
+MIME_DOCX = ("application/vnd.openxmlformats-officedocument"
+             ".wordprocessingml.document")
+
+
+@app.get("/pengajuan/{sid}/dokumen.docx")
+@app.get("/pengajuan/{sid}/docx")          # alamat lama tetap dilayani
 def download_docx(request: Request, sid: int):
     u = require(request)
     db = db_()
@@ -690,12 +696,22 @@ def download_docx(request: Request, sid: int):
         raise HTTPException(404, "Pengajuan tidak ditemukan")
     if u.role == ROLE_SL and s.submitter_id != u.id:
         raise HTTPException(403, "Bukan pengajuan Anda")
+
     hasil = json.loads(s.data_json or "{}")
     out = os.path.join(tempfile.gettempdir(), s.code.replace("/", "_") + ".docx")
     docgen.buat_dokumen(s, hasil, s.approvals, BASE_URL, out)
-    nama = f"{TYPES[s.type]['label']} - {s.branch.name} - " \
-           f"{docgen.BULAN[s.period_month]} {s.period_year}.docx"
-    return FileResponse(out, filename=nama)
+
+    nama = (f"{TYPES[s.type]['label']} - {s.branch.name} - "
+            f"{docgen.BULAN[s.period_month]} {s.period_year}.docx")
+    # Kirim nama berkas dalam dua bentuk: teks biasa sebagai cadangan, dan
+    # bentuk terkode. Tanpa cadangan, sebagian browser memakai potongan alamat
+    # sebagai nama berkas sehingga .docx dikira arsip dan dibuka jadi folder.
+    polos = "".join(c if (c.isalnum() or c in " .-_") else "-" for c in nama)
+    disposisi = (f'attachment; filename="{polos}"; '
+                 f"filename*=UTF-8''{quote(nama)}")
+    return FileResponse(out, media_type=MIME_DOCX,
+                        headers={"Content-Disposition": disposisi,
+                                 "X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/verify/{token}", response_class=HTMLResponse)
