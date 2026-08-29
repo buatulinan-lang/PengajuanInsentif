@@ -1,0 +1,50 @@
+{% extends "base.html" %}{% block body %}
+<div class="card">
+<h1>Master Cabang</h1>
+<p class="mut" style="margin-top:-8px">Alamat di sini yang otomatis mengganti header
+dokumen Word saat cabang dipilih pada pengajuan.</p>
+{% if pesan %}<p class="err" style="background:#e4f5ea;border-color:#aedcc0;color:#1f6f43">
+{{ pesan }}</p>{% endif %}
+<table>
+<tr><th>Cabang</th><th>Nama di Header</th><th>Alamat</th><th>Kota</th>
+<th>Status</th><th></th></tr>
+{% for b in items %}
+<tr>
+<td><b>{{ b.name }}</b></td>
+<td>{{ b.display_name or '' }}</td>
+<td style="max-width:380px">{{ b.address or '' }}</td>
+<td>{{ b.city or '' }}</td>
+<td>{% if b.active %}<span class="badge b-done">Aktif</span>
+    {% else %}<span class="badge b-draft">Nonaktif</span>{% endif %}</td>
+<td class="right" style="white-space:nowrap">
+  <a href="/master/cabang?edit={{ b.id }}">Ubah</a>
+  <form method="post" action="/master/cabang/{{ b.id }}/aktif" style="display:inline">
+    <button class="sec" style="padding:3px 9px;font-size:12px">
+      {{ 'Nonaktifkan' if b.active else 'Aktifkan' }}</button></form>
+</td></tr>
+{% endfor %}
+</table>
+</div>
+
+<div class="card">
+<h2>{{ 'Ubah Cabang: ' + edit.name if edit else 'Tambah Cabang Baru' }}</h2>
+<form method="post" action="/master/cabang">
+<input type="hidden" name="id" value="{{ edit.id if edit else 0 }}">
+<div class="grid">
+<div><label>Nama Cabang</label>
+  <input name="name" style="width:100%" required placeholder="Klender"
+         value="{{ edit.name if edit else '' }}"></div>
+<div><label>Nama di Header Dokumen</label>
+  <input name="display_name" style="width:100%" placeholder="MFlash &ndash; Klender"
+         value="{{ edit.display_name if edit else '' }}"></div>
+<div><label>Kota (untuk tanggal surat)</label>
+  <input name="city" style="width:100%" placeholder="Jakarta"
+         value="{{ edit.city if edit else 'Jakarta' }}"></div>
+</div>
+<label>Alamat Lengkap</label>
+<textarea name="address" rows="2" style="width:100%"
+  placeholder="Jl. Raya Bekasi No.KM.17, RT.2/RW.3, ...">{{ edit.address if edit else '' }}</textarea>
+<p><button>Simpan</button>
+{% if edit %}<a href="/master/cabang" style="margin-left:10px">Batal</a>{% endif %}</p>
+</form></div>
+{% endblock %}

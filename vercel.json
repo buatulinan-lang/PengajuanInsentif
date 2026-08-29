@@ -1,0 +1,15 @@
+{
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "**",
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
+  "rewrites": [
+    { "source": "/:jalur*", "destination": "/api/index?__vpath=/:jalur*" }
+  ],
+  "crons": [
+    { "path": "/health", "schedule": "0 3 * * *" }
+  ]
+}

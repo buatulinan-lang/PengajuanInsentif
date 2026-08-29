@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block body %}
+<div class="card" style="max-width:380px;margin:60px auto">
+<h1>Masuk</h1>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<form method="post" action="/login">
+<label>Username</label><input name="username" style="width:100%" required autofocus>
+<label>Password</label><input name="password" type="password" style="width:100%" required>
+<p><button style="width:100%">Masuk</button></p></form></div>
+{% endblock %}
