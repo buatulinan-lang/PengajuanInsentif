@@ -1,6 +1,8 @@
 {% extends "base.html" %}{% block body %}
-<div class="card"><h1>Buat Pengajuan Insentif</h1>
 <form method="post" action="/pengajuan/baru" enctype="multipart/form-data">
+
+<div class="card">
+<h1>Buat Pengajuan Insentif</h1>
 <div class="grid">
 <div><label>Jenis Pengajuan</label>
 <select name="jenis" id="jenis" style="width:100%" onchange="ganti()">
@@ -12,26 +14,27 @@
 {% for i in range(1,13) %}<option value="{{ i }}">{{ BULAN[i] }}</option>{% endfor %}
 </select></div>
 <div><label>Tahun</label><input name="tahun" type="number" value="2026" style="width:100%"></div>
-<div><label>Laba Ditahan (%)</label>
+<div id="isian-laba"><label>Laba Ditahan (%)</label>
 <input name="laba_ditahan_pct" type="number" step="0.01" value="7" style="width:100%"></div>
 </div>
 </div>
 
 <div class="card" id="bagian-profit">
 <h2>Cabang yang Diajukan</h2>
-<p class="mut" style="margin-top:-6px">Pilih <b>Cabang tunggal</b> bila tidak sedang
-dalam masa rotasi. Pilih <b>Rotasi cabang</b> bila Anda mutasi dan masih berhak atas
-insentif cabang lama &mdash; pengali proporsinya dihitung otomatis dari bulan efektif mutasi.</p>
+<p class="mut" style="margin-top:-8px">Pilih <b>Cabang tunggal</b> bila tidak sedang dalam
+masa rotasi. Pilih <b>Rotasi cabang</b> bila Anda mutasi dan masih berhak atas insentif
+cabang lama &mdash; pengali proporsinya dihitung otomatis dari bulan efektif mutasi.</p>
 <div id="blok"></div>
-<p><button type="button" class="sec" onclick="tambah('tunggal')">+ Cabang tunggal</button>
+<p style="margin-bottom:0">
+<button type="button" class="sec" onclick="tambah('tunggal')">+ Cabang tunggal</button>
 <button type="button" class="sec" onclick="tambah('rotasi')">+ Rotasi cabang</button></p>
 </div>
 
 <div class="card" id="bagian-sales" style="display:none">
 <h2>Data Penjualan</h2>
-<p class="mut" style="margin-top:-6px">Unggah dua file ekspor apa adanya &mdash;
-aplikasi yang mengolahnya. Insentif dihitung untuk seluruh sales aktif di cabang
-yang dipilih, sesuai Master Sales.</p>
+<p class="mut" style="margin-top:-8px">Unggah dua file ekspor apa adanya &mdash; aplikasi yang
+mengolahnya. Insentif dihitung untuk seluruh sales aktif di cabang yang dipilih,
+sesuai Master Sales.</p>
 <div class="grid">
 <div><label>Cabang</label><select name="s_branch" style="width:100%">
 {% for b in branches %}<option value="{{ b.id }}"
@@ -46,9 +49,8 @@ yang dipilih, sesuai Master Sales.</p>
 
 <div class="card" id="bagian-purchasing" style="display:none">
 <h2>Data Pembelian</h2>
-<p class="mut" style="margin-top:-6px">Unggah ekspor Accurate
-<i>Rincian Pembelian for RnD</i> untuk satu bulan penuh, apa adanya.
-Kategori tertarget diambil dari Master Supplier.</p>
+<p class="mut" style="margin-top:-8px">Unggah ekspor Accurate <i>Rincian Pembelian for RnD</i>
+untuk satu bulan penuh, apa adanya. Kategori tertarget diambil dari Master Supplier.</p>
 <div class="grid">
 <div><label>Cabang</label><select name="p_branch" style="width:100%">
 {% for b in branches %}<option value="{{ b.id }}"
@@ -59,48 +61,54 @@ Kategori tertarget diambil dari Master Supplier.</p>
 </div>
 </div>
 
-<p><button>Simpan &amp; Hitung</button></p>
-</form></div>
+<p><button class="oranye">Simpan &amp; Hitung</button></p>
+</form>
 
 <template id="t-cabang">
 <select name="__NAMA__" style="width:100%">
-{% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+{% for b in branches %}<option value="{{ b.id }}"
+{% if me.branch_id==b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+</select></template>
+
+<template id="t-bulan">
+<select name="__NAMA__" style="width:100%">
+{% for i in range(1,13) %}<option value="{{ i }}">{{ BULAN[i] }}</option>{% endfor %}
 </select></template>
 
 <script>
-const OPSI = document.getElementById('t-cabang').innerHTML;
+const OPSI_CABANG = document.getElementById('t-cabang').innerHTML;
+const OPSI_BULAN  = document.getElementById('t-bulan').innerHTML;
 let n = 0;
-function sel(nama){ return OPSI.replace('__NAMA__', nama); }
+const selCabang = nama => OPSI_CABANG.replace('__NAMA__', nama);
+const selBulan  = nama => OPSI_BULAN.replace('__NAMA__', nama);
 
 function tambah(tipe){
   n++;
   const d = document.createElement('div');
   d.className = 'card';
-  d.style.background = '#fbfcfd';
+  d.style.cssText = 'background:var(--krem);margin-bottom:14px';
   let isi = `<input type="hidden" name="blok_tipe" value="${tipe}">
-    <div style="display:flex;align-items:center;gap:10px">
-      <b>${tipe === 'rotasi' ? 'Rotasi cabang' : 'Cabang tunggal'} #${n}</b>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <b style="color:var(--navy)">${tipe === 'rotasi' ? 'Rotasi cabang' : 'Cabang tunggal'} #${n}</b>
       <span style="flex:1"></span>
-      <button type="button" class="sec" onclick="this.closest('.card').remove()">Hapus</button>
+      <button type="button" class="sec" style="padding:5px 12px;font-size:13px"
+        onclick="this.closest('.card').remove()">Hapus</button>
     </div>`;
   if (tipe === 'rotasi'){
     isi += `<div class="grid">
-      <div><label>Cabang Asal</label>${sel('b_asal')}</div>
+      <div><label>Cabang Asal</label>${selCabang('b_asal')}</div>
       <div><label>Laporan Laba/Rugi Cabang Asal (.xlsx)</label>
         <input type="file" name="excel_asal" accept=".xlsx,.xlsm" required></div>
-      <div><label>Cabang Tujuan Mutasi</label>${sel('b_tujuan')}</div>
+      <div><label>Cabang Tujuan Mutasi</label>${selCabang('b_tujuan')}</div>
       <div><label>Laporan Laba/Rugi Cabang Tujuan (.xlsx)</label>
         <input type="file" name="excel_tujuan" accept=".xlsx,.xlsm" required></div>
-      <div><label>Bulan Efektif Mutasi</label>
-        <select name="mut_bulan" style="width:100%">
-        {% for i in range(1,13) %}<option value="{{ i }}">{{ BULAN[i] }}</option>{% endfor %}
-        </select></div>
+      <div><label>Bulan Efektif Mutasi</label>${selBulan('mut_bulan')}</div>
       <div><label>Tahun Efektif Mutasi</label>
         <input name="mut_tahun" type="number" value="2026" style="width:100%"></div>
     </div>`;
   } else {
     isi += `<div class="grid">
-      <div><label>Cabang</label>${sel('b_asal')}</div>
+      <div><label>Cabang</label>${selCabang('b_asal')}</div>
       <div><label>Laporan Laba/Rugi (.xlsx)</label>
         <input type="file" name="excel_asal" accept=".xlsx,.xlsm" required></div>
     </div>
@@ -112,20 +120,27 @@ function tambah(tipe){
   d.innerHTML = isi;
   document.getElementById('blok').appendChild(d);
 }
-tambah('tunggal');
 
 function ganti(){
   const j = document.getElementById('jenis').value;
   const sales = (j === 'sales_team'), purc = (j === 'purchasing');
   const profit = !sales && !purc;
+  document.getElementById('bagian-profit').style.display     = profit ? '' : 'none';
   document.getElementById('bagian-sales').style.display      = sales  ? '' : 'none';
   document.getElementById('bagian-purchasing').style.display = purc   ? '' : 'none';
-  document.getElementById('bagian-profit').style.display     = profit ? '' : 'none';
-  // input file wajib hanya bila bagiannya sedang tampil
-  document.querySelectorAll('#blok input[type=file]').forEach(i => i.required = profit);
-  document.querySelectorAll('#bagian-sales input[type=file]').forEach(i => i.required = sales);
-  document.querySelectorAll('#bagian-purchasing input[type=file]').forEach(i => i.required = purc);
+  document.getElementById('isian-laba').style.display        = profit ? '' : 'none';
+  // berkas hanya wajib pada bagian yang sedang tampil
+  document.querySelectorAll('#blok input[type=file][name=excel_asal]')
+    .forEach(i => i.required = profit);
+  document.querySelectorAll('#blok input[type=file][name=excel_tujuan]')
+    .forEach(i => i.required = profit && i.style.display !== 'none');
+  document.querySelectorAll('#bagian-sales input[type=file]')
+    .forEach(i => i.required = sales);
+  document.querySelectorAll('#bagian-purchasing input[type=file]')
+    .forEach(i => i.required = purc);
 }
+
+tambah('tunggal');
 ganti();
 </script>
 {% endblock %}

@@ -4,7 +4,8 @@
 'menunggu_finance':'b-fin','done':'b-done','ditolak':'b-rej'}[st] %}
 <span class="badge {{ c }}">{{ STATUS_LABELS[st] }}</span>{% endmacro %}
 {% if inbox %}
-<div class="card"><h2>Perlu tindakan Anda ({{ inbox|length }})</h2>
+<div class="card" style="border-left:4px solid var(--oranye)">
+<h2>Perlu tindakan Anda ({{ inbox|length }})</h2>
 <table><tr><th>Kode</th><th>Jenis</th><th>Cabang</th><th>Periode</th>
 <th class="num">Total</th><th></th></tr>
 {% for s in inbox %}<tr><td>{{ s.code }}</td><td>{{ TYPES[s.type].label }}</td>

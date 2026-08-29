@@ -62,6 +62,28 @@ CABANG = [
      "Kabupaten Bogor, Jawa Barat 16820"),
 ]
 
+# Store Leader per cabang. Password awal sama untuk semua; setiap orang
+# menggantinya sendiri lewat menu Ganti Password saat pertama masuk.
+PW_SL = "12345678"
+STORE_LEADER = [
+    ("Bintara",      "Tatang Saputra"),
+    ("Radjiman",     "Rinaldy Alamsyah"),
+    ("Jatimulya",    "Rizqi Fadhillah"),
+    ("Dramaga",      "Tony Nugroho"),
+    ("Condet",       "Yusup Ismail"),
+    ("Jatibening",   "Chandra Kurniawan"),
+    ("Sawangan",     "Muhammad Waldi"),
+    ("Warbong",      "Saiful Bahmi"),
+    ("Cinere",       "Ery Suryo"),
+    ("Cibinong",     "Feri Irawan"),
+    ("Karawang",     "Busyra Kirawa"),
+    ("Jatiwaringin", "Buyung Widagdo"),
+    ("Cikampek",     "Ikbal Sabari"),
+    ("Cilangkap",    "Rusmindar"),
+    ("Pejaten",      "Harris Januar"),
+    ("Cibubur",      "Vicky Faldhy"),
+]
+
 AKUN = [
     ("sl.klender", "Vicky Faldhy Agita", "Store Leader MFlash Klender", ROLE_SL, "Klender"),
     ("arm",     "Budiarja Ibrahim", "Store Area Manager",    ROLE_ARM,     None),
@@ -108,6 +130,26 @@ def jalankan():
                         position=pos, role=role, branch_id=bid))
         db.commit()
         print(f"akun awal dibuat ({len(AKUN)})")
+    # Store Leader per cabang — hanya ditambahkan bila belum ada
+    sl_baru, sl_lewat = 0, []
+    for cabang, nama in STORE_LEADER:
+        username = "sl." + cabang.lower()
+        if db.query(User).filter_by(username=username).first():
+            continue
+        b = db.query(Branch).filter_by(name=cabang).first()
+        if not b:
+            sl_lewat.append(cabang)
+            continue
+        db.add(User(username=username, password_hash=hash_pw(PW_SL), full_name=nama,
+                    position=f"Store Leader {cabang}", role=ROLE_SL,
+                    branch_id=b.id, active=True))
+        sl_baru += 1
+    db.commit()
+    if sl_baru:
+        print(f"store leader: {sl_baru} akun baru dibuat (password awal {PW_SL})")
+    if sl_lewat:
+        print("cabang tidak ditemukan, SL dilewati: " + ", ".join(sl_lewat))
+
     print(f"cabang: {baru} baru, {diperbarui} dilengkapi, "
           f"{db.query(Branch).count()} total")
     db.close()

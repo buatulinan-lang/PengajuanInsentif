@@ -1,56 +1,166 @@
 <!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{% block title %}Pengajuan Insentif{% endblock %}</title>
+<link rel="icon" href="/static/logo-mflash.png">
+<title>{% block title %}Pengajuan Insentif MFlash{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--line:#e3e6ea;--ink:#1c2024;--mut:#6b7280;--acc:#1f6f43}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
-font:14px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
-header{background:var(--acc);color:#fff;padding:12px 20px;display:flex;
-align-items:center;gap:16px;flex-wrap:wrap}
-header a{color:#fff;text-decoration:none;opacity:.9}header a:hover{opacity:1}
-.brand{font-weight:600}.sp{flex:1}
-main{max-width:1080px;margin:22px auto;padding:0 16px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;
-padding:18px;margin-bottom:16px}
-h1{font-size:20px;margin:0 0 14px}h2{font-size:15px;margin:0 0 12px}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left}
-th{background:#f1f3f5;font-weight:600}
-td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
-.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11.5px;
-font-weight:600;border:1px solid}
-.b-draft{background:#f1f3f5;border-color:#d7dbe0;color:#495057}
-.b-arm{background:#fff4e0;border-color:#f0d199;color:#9a6400}
-.b-ceo{background:#e7f0ff;border-color:#b9d0f7;color:#14509a}
-.b-fin{background:#f0e9ff;border-color:#cebdf5;color:#5b34a8}
-.b-done{background:#e4f5ea;border-color:#aedcc0;color:#1f6f43}
-.b-rej{background:#fdeaea;border-color:#f3bcbc;color:#a52020}
-input,select,textarea,button{font:inherit;padding:8px 10px;border:1px solid var(--line);
-border-radius:7px;background:#fff}
-label{display:block;font-size:12.5px;color:var(--mut);margin:10px 0 4px;font-weight:600}
-button{background:var(--acc);color:#fff;border:0;cursor:pointer;font-weight:600}
-button.sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
-button.warn{background:#a52020}
-.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-.tl{list-style:none;padding:0;margin:0}
-.tl li{padding:7px 0 7px 22px;position:relative;color:var(--mut)}
-.tl li:before{content:"";position:absolute;left:4px;top:14px;width:9px;height:9px;
-border-radius:50%;background:#cdd3d9}
-.tl li.ok{color:var(--ink)}.tl li.ok:before{background:var(--acc)}
-.mut{color:var(--mut)}.right{text-align:right}
-a.btn{display:inline-block;background:var(--acc);color:#fff;padding:8px 14px;
-border-radius:7px;text-decoration:none;font-weight:600}
-.err{background:#fdeaea;border:1px solid #f3bcbc;color:#a52020;padding:9px 12px;border-radius:7px}
+:root{
+  /* warna diambil dari logo MFlash */
+  --navy:#14355B; --navy-tua:#0E2743; --navy-muda:#2A5486;
+  --oranye:#F58F22; --oranye-tua:#DB7927; --oranye-lembut:#FDF0DF;
+
+  --krem:#F6EFE2; --krem-tua:#EFE4D2;
+  --kertas:#FFFCF7; --garis:#E5D9C6; --garis-tipis:#F0E7D8;
+  --tinta:#1D2B3A; --redup:#6E7A87;
+
+  --hijau:#1F7A4C; --hijau-lembut:#E4F2E9;
+  --merah:#A8271F; --merah-lembut:#FBE9E7;
+  --bayang:0 1px 2px rgba(20,53,91,.06), 0 10px 26px -20px rgba(20,53,91,.45);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--krem); color:var(--tinta);
+  font-family:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14.5px; line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- bilah atas ---------- */
+header{
+  background:var(--navy); color:#fff; padding:0 22px;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-height:60px;
+  border-bottom:3px solid var(--oranye);
+  box-shadow:0 2px 10px -4px rgba(14,39,67,.5);
+}
+header .merek{
+  display:flex; align-items:center; gap:10px; margin-right:14px;
+  padding:7px 0; text-decoration:none; color:#fff;
+}
+header .merek img{height:32px; width:auto; display:block;
+  background:#fff; border-radius:7px; padding:4px 7px}
+header .merek span{font-weight:700; letter-spacing:-.01em; font-size:15px}
+header nav{display:flex; align-items:center; gap:2px; flex-wrap:wrap}
+header nav a{
+  color:#D6E2F0; text-decoration:none; font-size:13.5px; font-weight:500;
+  padding:7px 11px; border-radius:7px; white-space:nowrap;
+}
+header nav a:hover{background:rgba(255,255,255,.12); color:#fff}
+header .sp{flex:1}
+header .aku{display:flex; align-items:center; gap:12px; font-size:13px; color:#C3D3E6}
+header .aku b{color:#fff; font-weight:600}
+header .aku a{color:#C3D3E6; text-decoration:none; padding:6px 10px; border-radius:7px}
+header .aku a:hover{background:rgba(255,255,255,.12); color:#fff}
+header a:focus-visible, a:focus-visible, button:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible{
+  outline:2px solid var(--oranye); outline-offset:2px}
+
+main{max-width:1120px; margin:26px auto; padding:0 18px}
+
+/* ---------- kartu ---------- */
+.card{
+  background:var(--kertas); border:1px solid var(--garis); border-radius:12px;
+  padding:20px 22px; margin-bottom:18px; box-shadow:var(--bayang);
+}
+h1{font-size:22px; font-weight:700; letter-spacing:-.02em; margin:0 0 14px; color:var(--navy)}
+h2{font-size:15px; font-weight:700; margin:0 0 14px; color:var(--navy)}
+h1 .mut, h2 .mut{font-weight:500}
+p{margin:0 0 12px}
+a{color:var(--navy-muda)}
+
+/* ---------- tabel ---------- */
+table{width:100%; border-collapse:collapse; font-size:13.5px}
+th,td{padding:9px 11px; border-bottom:1px solid var(--garis-tipis); text-align:left}
+th{background:var(--krem-tua); color:var(--navy); font-weight:700;
+   font-size:12px; letter-spacing:.03em; text-transform:uppercase}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover td{background:#FBF7F0}
+table table th{background:transparent; text-transform:none; letter-spacing:0; font-size:13.5px}
+
+/* ---------- lencana ---------- */
+.badge{display:inline-block; padding:3px 10px; border-radius:99px;
+  font-size:11.5px; font-weight:700; border:1px solid; white-space:nowrap}
+.b-draft{background:#EFEAE1; border-color:#DCD2C2; color:#6E7A87}
+.b-arm  {background:var(--oranye-lembut); border-color:#F4D3A6; color:#9A5A08}
+.b-ceo  {background:#E6EDF6; border-color:#BCCFE6; color:var(--navy)}
+.b-fin  {background:#E9E7F7; border-color:#C8C3EA; color:#413A8C}
+.b-done {background:var(--hijau-lembut); border-color:#B4DCC4; color:var(--hijau)}
+.b-rej  {background:var(--merah-lembut); border-color:#EFC0BB; color:var(--merah)}
+
+/* ---------- isian ---------- */
+label{display:block; font-size:12.5px; font-weight:600; color:var(--navy);
+  margin:12px 0 5px}
+input,select,textarea{
+  font:inherit; font-size:14px; padding:9px 11px; border:1px solid var(--garis);
+  border-radius:8px; background:#fff; color:var(--tinta); max-width:100%;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--navy-muda)}
+input[type=file]{padding:7px 9px; background:var(--krem)}
+
+button,.btn{
+  font:inherit; font-size:14px; font-weight:600; padding:9px 18px; border:0;
+  border-radius:8px; background:var(--navy); color:#fff; cursor:pointer;
+  text-decoration:none; display:inline-block; transition:background .15s;
+}
+button:hover,.btn:hover{background:var(--navy-tua)}
+button.sec{background:#fff; color:var(--navy); border:1px solid var(--garis)}
+button.sec:hover{background:var(--krem-tua)}
+button.warn{background:var(--merah)}
+button.warn:hover{background:#8C1E17}
+.btn-oranye,button.oranye{background:var(--oranye); color:#fff}
+.btn-oranye:hover,button.oranye:hover{background:var(--oranye-tua)}
+
+.grid{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.mut{color:var(--redup)}
+.right{text-align:right}
+
+/* ---------- garis waktu status ---------- */
+.tl{list-style:none; padding:0; margin:0}
+.tl li{padding:7px 0 7px 24px; position:relative; color:var(--redup); font-size:14px}
+.tl li:before{content:""; position:absolute; left:3px; top:14px; width:10px; height:10px;
+  border-radius:50%; background:var(--krem-tua); border:1px solid var(--garis)}
+.tl li.ok{color:var(--tinta); font-weight:600}
+.tl li.ok:before{background:var(--oranye); border-color:var(--oranye-tua)}
+
+/* ---------- pesan ---------- */
+.err{background:var(--merah-lembut); border:1px solid #EFC0BB; color:var(--merah);
+  padding:10px 14px; border-radius:8px; font-size:14px}
+
+/* ---------- halaman masuk ---------- */
+.masuk{max-width:390px; margin:56px auto}
+.masuk .kop{text-align:center; margin-bottom:22px}
+.masuk .kop img{height:96px; width:auto}
+.masuk .kop h1{margin:16px 0 4px; font-size:20px}
+.masuk .kop p{margin:0; color:var(--redup); font-size:13.5px}
+.masuk .kaki{text-align:center; margin-top:22px; color:var(--redup); font-size:12px}
+.masuk .kaki img{height:40px; width:auto; opacity:.75; display:block; margin:0 auto 6px}
+
+@media (max-width:640px){
+  header{padding:0 14px}
+  main{padding:0 12px; margin:16px auto}
+  .card{padding:16px}
+}
 </style></head><body>
-{% if me %}<header><span class="brand">Pengajuan Insentif</span>
-<a href="/">Dashboard</a>
-{% if me.role in ['store_leader','admin'] %}<a href="/pengajuan/baru">Buat Pengajuan</a>{% endif %}
-{% if me.role in ['admin','arm'] %}<a href="/master/cabang">Master Cabang</a>
-<a href="/master/sales">Master Sales</a>
-<a href="/master/supplier">Master Supplier</a>{% endif %}
-{% if me.role == 'admin' %}<a href="/master/akun">Kelola Akun</a>{% endif %}
-<span class="sp"></span>
-<span>{{ me.full_name }} · {{ ROLE_LABELS[me.role] }}</span>
-<a href="/akun/password">Ganti Password</a>
-<a href="/logout">Keluar</a></header>{% endif %}
+{% if me %}
+<header>
+  <a class="merek" href="/">
+    <img src="/static/logo-mflash.png" alt="MFlash">
+    <span>Pengajuan Insentif</span>
+  </a>
+  <nav>
+    <a href="/">Dashboard</a>
+    {% if me.role in ['store_leader','admin'] %}<a href="/pengajuan/baru">Buat Pengajuan</a>{% endif %}
+    {% if me.role in ['admin','arm'] %}<a href="/master/cabang">Cabang</a>
+    <a href="/master/sales">Sales</a>
+    <a href="/master/supplier">Supplier</a>{% endif %}
+    {% if me.role == 'admin' %}<a href="/master/akun">Kelola Akun</a>{% endif %}
+  </nav>
+  <span class="sp"></span>
+  <span class="aku">
+    <span><b>{{ me.full_name }}</b> &middot; {{ ROLE_LABELS[me.role] }}</span>
+    <a href="/akun/password">Ganti Password</a>
+    <a href="/logout">Keluar</a>
+  </span>
+</header>
+{% endif %}
 <main>{% block body %}{% endblock %}</main></body></html>
