@@ -71,6 +71,26 @@ seminggu periksa project Supabase masih berstatus aktif (bukan *Paused*).
 - Periksa Master Cabang, isi Master Sales, dan impor Master Supplier.
 - Uji dengan data yang hasilnya sudah diketahui (lihat README).
 
+## Lupa password admin
+
+Password tersimpan terenkripsi, jadi tidak bisa dibaca kembali &mdash; hanya bisa
+disetel ulang:
+
+1. Vercel &rarr; Settings &rarr; Environment Variables
+2. Ubah `SEED_PASSWORD` menjadi password baru yang Anda inginkan
+3. Tambahkan variabel baru: `RESET_AKUN` bernilai `1`
+4. Deployments &rarr; titik tiga di deployment teratas &rarr; **Redeploy**
+5. Buka aplikasi, login `admin` dengan password baru
+6. **Hapus `RESET_AKUN`**, lalu Redeploy sekali lagi
+
+Yang disetel ulang hanya password kelima akun bawaan (`admin`, `arm`, `ceo`,
+`finance`, `sl.klender`). Data cabang, sales, supplier, dan seluruh riwayat
+pengajuan tidak tersentuh.
+
+> Langkah 6 penting. Selama `RESET_AKUN` masih ada, setiap deploy akan
+> mengembalikan password ke nilai `SEED_PASSWORD` &mdash; termasuk menimpa
+> password yang nanti diubah lewat menu kelola akun.
+
 ## Catatan tentang Vercel Hobby
 
 - **Tidak ada tidur.** Berbeda dengan Render gratis, aplikasi tidak dimatikan

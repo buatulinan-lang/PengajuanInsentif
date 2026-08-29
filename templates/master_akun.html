@@ -1,0 +1,69 @@
+{% extends "base.html" %}{% block body %}
+<div class="card">
+<h1>Kelola Akun</h1>
+<p class="mut" style="margin-top:-8px">Nama dan jabatan di sini yang tercetak pada blok
+tanda tangan dokumen Word dan tersimpan di riwayat persetujuan, jadi tulis sesuai
+orang yang sebenarnya.</p>
+{% if pesan %}<p class="err" style="background:#e4f5ea;border-color:#aedcc0;color:#1f6f43">
+{{ pesan }}</p>{% endif %}
+{% if galat %}<p class="err">{{ galat }}</p>{% endif %}
+<div style="overflow-x:auto"><table>
+<tr><th>Username</th><th>Nama</th><th>Jabatan</th><th>Peran</th><th>Cabang</th>
+<th>Status</th><th></th></tr>
+{% for u in items %}
+<tr><td><b>{{ u.username }}</b></td>
+<td>{{ u.full_name }}</td>
+<td class="mut">{{ u.position or '' }}</td>
+<td>{{ ROLE_LABELS[u.role] }}</td>
+<td>{{ u.branch.name if u.branch else '—' }}</td>
+<td>{% if u.active %}<span class="badge b-done">Aktif</span>
+    {% else %}<span class="badge b-draft">Nonaktif</span>{% endif %}</td>
+<td class="right" style="white-space:nowrap">
+  <a href="/master/akun?edit={{ u.id }}">Ubah</a>
+  {% if u.id != me.id %}
+  <form method="post" action="/master/akun/{{ u.id }}/aktif" style="display:inline">
+  <button class="sec" style="padding:3px 9px;font-size:12px">
+  {{ 'Nonaktifkan' if u.active else 'Aktifkan' }}</button></form>
+  {% endif %}
+</td></tr>
+{% endfor %}
+</table></div>
+</div>
+
+<div class="card">
+<h2>{{ 'Ubah Akun: ' + edit.username if edit else 'Tambah Akun' }}</h2>
+<form method="post" action="/master/akun">
+<input type="hidden" name="id" value="{{ edit.id if edit else 0 }}">
+<div class="grid">
+<div><label>Username (untuk login)</label>
+  <input name="username" style="width:100%" required placeholder="sl.condet"
+         value="{{ edit.username if edit else '' }}"></div>
+<div><label>Nama Lengkap</label>
+  <input name="full_name" style="width:100%" required placeholder="Budi Santoso"
+         value="{{ edit.full_name if edit else '' }}"></div>
+<div><label>Jabatan (tercetak di tanda tangan)</label>
+  <input name="position" style="width:100%" placeholder="Store Leader MFlash Condet"
+         value="{{ edit.position if edit else '' }}"></div>
+<div><label>Peran</label><select name="role" style="width:100%">
+  {% for k, v in ROLE_LABELS.items() %}
+  <option value="{{ k }}" {% if edit and edit.role == k %}selected{% endif %}>{{ v }}</option>
+  {% endfor %}</select></div>
+<div><label>Cabang (khusus Store Leader)</label><select name="branch_id" style="width:100%">
+  <option value="0">— tanpa cabang —</option>
+  {% for b in branches %}<option value="{{ b.id }}"
+   {% if edit and edit.branch_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+  </select></div>
+<div><label>Password {% if edit %}(kosongkan bila tidak diganti){% endif %}</label>
+  <input name="password" type="text" style="width:100%"
+         {% if not edit %}required{% endif %} placeholder="minimal 8 karakter"></div>
+</div>
+<p><button>Simpan</button>
+{% if edit %}<a href="/master/akun" style="margin-left:10px">Batal</a>{% endif %}</p>
+</form>
+<p class="mut" style="font-size:13.5px;margin-bottom:0">
+Peran menentukan apa yang bisa dilakukan: <b>Store Leader</b> mengajukan dan hanya melihat
+pengajuannya sendiri &middot; <b>Area Regional Manager</b> menyetujui tahap pertama dan
+mengelola master data &middot; <b>CEO</b> menyetujui tahap kedua &middot;
+<b>Finance</b> mengonfirmasi pencairan &middot; <b>Administrator</b> mengelola akun.</p>
+</div>
+{% endblock %}

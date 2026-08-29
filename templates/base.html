@@ -48,7 +48,9 @@ border-radius:7px;text-decoration:none;font-weight:600}
 {% if me.role in ['admin','arm'] %}<a href="/master/cabang">Master Cabang</a>
 <a href="/master/sales">Master Sales</a>
 <a href="/master/supplier">Master Supplier</a>{% endif %}
+{% if me.role == 'admin' %}<a href="/master/akun">Kelola Akun</a>{% endif %}
 <span class="sp"></span>
 <span>{{ me.full_name }} · {{ ROLE_LABELS[me.role] }}</span>
+<a href="/akun/password">Ganti Password</a>
 <a href="/logout">Keluar</a></header>{% endif %}
 <main>{% block body %}{% endblock %}</main></body></html>

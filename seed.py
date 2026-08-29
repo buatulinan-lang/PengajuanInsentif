@@ -5,6 +5,10 @@ from app.auth import hash_pw
 
 PW = os.environ.get("SEED_PASSWORD", "password123")
 
+# Setel ulang password akun bawaan. Isi RESET_AKUN=1 di Environment Variables
+# bila password admin terlupa, lalu Redeploy. Hapus lagi setelah berhasil masuk.
+RESET = os.environ.get("RESET_AKUN") == "1"
+
 # (nama, kota untuk tanggal surat, alamat lengkap)
 CABANG = [
     ("Klender", "Jakarta",
@@ -81,6 +85,18 @@ def jalankan():
             b.address, b.city = alamat, kota   # lengkapi yang masih kosong
             diperbarui += 1
     db.commit()
+
+    if RESET and db.query(User).count():
+        diubah = 0
+        for un, _fn, _pos, _role, _cabang in AKUN:
+            u = db.query(User).filter_by(username=un).first()
+            if u:
+                u.password_hash = hash_pw(PW)
+                u.active = True
+                diubah += 1
+        db.commit()
+        print(f"RESET_AKUN aktif: password {diubah} akun bawaan disetel ulang. "
+              f"Hapus RESET_AKUN dari Environment Variables setelah berhasil masuk.")
 
     if not db.query(User).count():
         for un, fn, pos, role, cabang in AKUN:

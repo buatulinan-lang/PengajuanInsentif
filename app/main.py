@@ -226,6 +226,116 @@ def home(request: Request):
     return render(request, "dashboard.html", items=items, inbox=inbox)
 
 
+# ------------------------------------------------- kelola akun
+MIN_PASSWORD = 8
+
+
+def _admin_aktif_lain(db, kecuali_id):
+    """Jumlah admin aktif selain akun tertentu — penjaga agar tidak terkunci."""
+    return (db.query(User)
+              .filter(User.role == ROLE_ADMIN, User.active == True,  # noqa: E712
+                      User.id != kecuali_id)
+              .count())
+
+
+@app.get("/master/akun", response_class=HTMLResponse)
+def master_akun(request: Request, edit: int = 0, pesan: str = "", galat: str = ""):
+    require(request, [ROLE_ADMIN])
+    db = db_()
+    return render(request, "master_akun.html",
+                  items=db.query(User).order_by(User.role, User.username).all(),
+                  branches=db.query(Branch).filter_by(active=True)
+                             .order_by(Branch.name).all(),
+                  edit=db.query(User).get(edit) if edit else None,
+                  pesan=pesan, galat=galat)
+
+
+@app.post("/master/akun")
+def master_akun_simpan(request: Request, id: int = Form(0), username: str = Form(...),
+                       full_name: str = Form(...), position: str = Form(""),
+                       role: str = Form(...), branch_id: int = Form(0),
+                       password: str = Form("")):
+    me = require(request, [ROLE_ADMIN])
+    db = db_()
+    username = username.strip().lower()
+    if not username or not full_name.strip():
+        return RedirectResponse("/master/akun?galat=Username+dan+nama+wajib+diisi", 303)
+    if role not in ROLE_LABELS:
+        return RedirectResponse("/master/akun?galat=Peran+tidak+dikenali", 303)
+    kembar = db.query(User).filter(User.username == username, User.id != id).first()
+    if kembar:
+        return RedirectResponse(f"/master/akun?galat=Username+{username}+sudah+dipakai", 303)
+
+    u = db.query(User).get(id) if id else User()
+    if not id and len(password) < MIN_PASSWORD:
+        return RedirectResponse(
+            f"/master/akun?galat=Password+minimal+{MIN_PASSWORD}+karakter", 303)
+    # jangan sampai admin terakhir kehilangan perannya sendiri
+    if id and u and u.role == ROLE_ADMIN and role != ROLE_ADMIN \
+            and _admin_aktif_lain(db, u.id) == 0:
+        return RedirectResponse(
+            "/master/akun?galat=Ini+administrator+terakhir,+perannya+tidak+bisa+diubah", 303)
+
+    u.username, u.full_name = username, full_name.strip()
+    u.position, u.role = position.strip(), role
+    u.branch_id = branch_id or None
+    if password:
+        if len(password) < MIN_PASSWORD:
+            return RedirectResponse(
+                f"/master/akun?galat=Password+minimal+{MIN_PASSWORD}+karakter", 303)
+        u.password_hash = hash_pw(password)
+    if not id:
+        u.active = True
+        db.add(u)
+    db.commit()
+    return RedirectResponse("/master/akun?pesan=Akun+tersimpan", 303)
+
+
+@app.post("/master/akun/{uid}/aktif")
+def master_akun_aktif(request: Request, uid: int):
+    me = require(request, [ROLE_ADMIN])
+    db = db_()
+    u = db.query(User).get(uid)
+    if not u:
+        return RedirectResponse("/master/akun?galat=Akun+tidak+ditemukan", 303)
+    if u.id == me.id:
+        return RedirectResponse(
+            "/master/akun?galat=Anda+tidak+bisa+menonaktifkan+akun+sendiri", 303)
+    if u.active and u.role == ROLE_ADMIN and _admin_aktif_lain(db, u.id) == 0:
+        return RedirectResponse(
+            "/master/akun?galat=Ini+administrator+terakhir+yang+aktif", 303)
+    u.active = not u.active
+    db.commit()
+    return RedirectResponse("/master/akun?pesan=Status+akun+diperbarui", 303)
+
+
+@app.get("/akun/password", response_class=HTMLResponse)
+def form_password(request: Request, pesan: str = "", galat: str = ""):
+    require(request)
+    return render(request, "ganti_password.html", pesan=pesan, galat=galat,
+                  minimal=MIN_PASSWORD)
+
+
+@app.post("/akun/password")
+def ganti_password(request: Request, lama: str = Form(...), baru: str = Form(...),
+                   ulangi: str = Form(...)):
+    me = require(request)
+    db = db_()
+    u = db.query(User).get(me.id)
+    if not verify_pw(lama, u.password_hash):
+        return RedirectResponse("/akun/password?galat=Password+lama+salah", 303)
+    if len(baru) < MIN_PASSWORD:
+        return RedirectResponse(
+            f"/akun/password?galat=Password+baru+minimal+{MIN_PASSWORD}+karakter", 303)
+    if baru != ulangi:
+        return RedirectResponse("/akun/password?galat=Ulangan+password+tidak+sama", 303)
+    if baru == lama:
+        return RedirectResponse("/akun/password?galat=Password+baru+sama+dengan+yang+lama", 303)
+    u.password_hash = hash_pw(baru)
+    db.commit()
+    return RedirectResponse("/akun/password?pesan=Password+berhasil+diganti", 303)
+
+
 # ------------------------------------------------- master cabang
 @app.get("/master/cabang", response_class=HTMLResponse)
 def master_cabang(request: Request, edit: int = 0, pesan: str = ""):
