@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block body %}
+<div class="card" style="max-width:620px;border-left:4px solid var(--merah)">
+<h1 style="margin-top:0">Hapus Pengajuan?</h1>
+<p>Pengajuan berikut akan dihapus permanen beserta seluruh lampiran dan
+riwayat persetujuannya. Tindakan ini tidak dapat dibatalkan.</p>
+
+<table style="margin-bottom:18px">
+<tr><th>Kode</th><td>{{ sub.code }}</td></tr>
+<tr><th>Jenis</th><td>{{ TYPES[sub.type].label }}</td></tr>
+<tr><th>Cabang</th><td>{{ sub.branch.name if sub.branch }}</td></tr>
+<tr><th>Pengaju</th><td>{{ sub.submitter.full_name if sub.submitter }}</td></tr>
+<tr><th>Periode</th><td>{{ BULAN[sub.period_month] }} {{ sub.period_year }}</td></tr>
+<tr><th>Total Insentif</th><td>{{ rupiah(sub.total_amount) }}</td></tr>
+<tr><th>Status</th><td>{{ STATUS_LABELS[sub.status] }}</td></tr>
+<tr><th>Lampiran</th><td>{{ lampiran }} berkas</td></tr>
+</table>
+
+<form method="post" action="/pengajuan/{{ sub.id }}/hapus"
+      style="display:flex;gap:10px;align-items:center">
+  <input type="hidden" name="kembali" value="{{ kembali }}">
+  <button style="background:var(--merah);border-color:var(--merah)">Ya, Hapus</button>
+  <a href="{{ kembali }}" class="sec"
+     style="padding:9px 16px;border-radius:8px;text-decoration:none">Batal</a>
+</form>
+</div>
+{% endblock %}

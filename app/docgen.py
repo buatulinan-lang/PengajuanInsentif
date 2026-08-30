@@ -111,19 +111,32 @@ def _jangan_pecah(t, sampai=None):
                 par.paragraph_format.keep_with_next = True
 
 
-def _lebar_tetap(t):
-    """Kunci lebar kolom agar tidak diatur ulang oleh Word."""
+def _lebar_tetap(t, lebar=None):
+    """Kunci lebar kolom agar tidak diatur ulang oleh Word.
+
+    Lebar sel saja tidak cukup: Word dan LibreOffice memakai w:tblGrid pada
+    tata letak tetap, sedangkan python-docx tidak ikut memperbaruinya.
+    """
     tblPr = t._tbl.tblPr
     lay = OxmlElement("w:tblLayout")
     lay.set(qn("w:type"), "fixed")
     tblPr.append(lay)
+    if lebar:
+        grid = t._tbl.find(qn("w:tblGrid"))
+        if grid is not None:
+            for kol in list(grid):
+                grid.remove(kol)
+            for w in lebar:
+                kol = OxmlElement("w:gridCol")
+                kol.set(qn("w:w"), str(int(round(w * 567))))   # cm -> twips
+                grid.append(kol)
 
 
 def _tabel(doc, judul, lebar, ukuran=8.5):
     t = doc.add_table(rows=1, cols=len(judul))
     t.style = "Table Grid"
     t.autofit = False
-    _lebar_tetap(t)
+    _lebar_tetap(t, lebar)
     for i, (j, w) in enumerate(zip(judul, lebar)):
         sel = t.rows[0].cells[i]
         sel.width = Cm(w)
@@ -347,13 +360,16 @@ def _tabel_profit(doc, hasil):
 def _tabel_sales(doc, hasil):
     judul = ["Nama Sales", "Status", "Omzet", "GP Aksesoris",
              "Unit HP", "Unit Laptop", "Insentif"]
-    lebar = [3.9, 2.0, 2.6, 2.3, 1.6, 1.7, 2.5]
-    t = _tabel(doc, judul, lebar)
+    lebar = [4.8, 1.8, 2.5, 2.3, 1.5, 1.6, 2.1]
+    t = _tabel(doc, judul, lebar, 8)
     kanan = {2, 3, 4, 5, 6}
-    for b in hasil.get("baris", []):
+    semua = hasil.get("baris", [])
+    # Sales tanpa insentif bulan ini tidak dicetak supaya daftarnya ringkas.
+    aktif = [b for b in semua if b.get("total")]
+    for b in aktif:
         _baris(t, [b["nama"], b["status"], angka(b["omset_total"]),
                    angka(b["gp_aksesoris"]), b["n_handphone"], b["n_laptop"],
-                   angka(b["total"])], lebar, kanan=kanan)
+                   angka(b["total"])], lebar, 8, kanan=kanan)
     _baris_lebar(t, "Subtotal Insentif Sales", angka(hasil.get("subtotal_sales", 0)),
                  lebar, 8.5, True, KREM_MUDA)
     _baris_lebar(t, f"Insentif Team {hasil.get('pct_insentif_team', 2)}% dari bagi "
@@ -362,9 +378,12 @@ def _tabel_sales(doc, hasil):
                  angka(hasil.get("insentif_team", 0)), lebar, 8.5, False, KREM_MUDA)
     _baris_lebar(t, "TOTAL INSENTIF YANG DIDAPAT", angka(hasil.get("total", 0)),
                  lebar, 9.5, True, KREM)
+    nihil = len(semua) - len(aktif)
     _catatan(doc, "Omzet dan gross profit diatribusikan melalui Nama Default "
                   "Penjual pada data pelanggan. Jumlah unit dihitung per faktur "
-                  "menurut kategori penjualan.")
+                  "menurut kategori penjualan."
+                  + (f" {nihil} sales tanpa insentif bulan ini tidak ditampilkan."
+                     if nihil else ""))
 
 
 def _tabel_purchasing(doc, hasil):
@@ -514,7 +533,15 @@ def buat_dokumen(sub, hasil, approvals, base_url, out_path):
                   kepada, tembusan)
     _pembuka(doc, sub, kalimat)
 
-    if sub.type == "sales_team":
+    if not hasil:
+        # Perhitungan gagal (mis. master data belum lengkap): cetak keterangannya
+        # supaya dokumen tetap terbuka, bukan gagal diunduh.
+        _paragraf(doc, "Rincian perhitungan belum tersedia.", 10.5, True,
+                  spasi_setelah=4)
+        _paragraf(doc, sub.note or "Data pengajuan belum lengkap. Silakan buat "
+                                   "ulang pengajuan setelah data pendukungnya "
+                                   "dilengkapi.", 10, spasi_setelah=10, warna=ABU)
+    elif sub.type == "sales_team":
         _tabel_sales(doc, hasil)
     elif sub.type == "purchasing":
         _tabel_purchasing(doc, hasil)

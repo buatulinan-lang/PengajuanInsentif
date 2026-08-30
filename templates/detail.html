@@ -9,7 +9,10 @@
 </div>
 {% if s.note %}<p class="err" style="margin-top:12px">{{ s.note }}</p>{% endif %}
 <p style="margin-top:14px">
-<a class="btn btn-oranye" href="/pengajuan/{{ s.id }}/dokumen.docx">Unduh Word (ber-QR)</a></p>
+<a class="btn btn-oranye" href="/pengajuan/{{ s.id }}/dokumen.docx">Unduh Word (ber-QR)</a>
+{% if me.role == 'admin' %}
+<a href="/pengajuan/{{ s.id }}/hapus?kembali=%2F" style="margin-left:14px;
+   color:var(--merah);font-size:13.5px;font-weight:600">Hapus pengajuan</a>{% endif %}</p>
 </div>
 
 <div class="card"><h2>Status Pengajuan</h2>
@@ -127,13 +130,14 @@ lalu ajukan ulang.</p>
 
 {% if hasil.jenis == 'sales_team' %}
 <div class="card"><h2>Insentif Sales &mdash; {{ BULAN[hasil.bulan] }} {{ hasil.tahun }}</h2>
-<div style="overflow-x:auto"><table>
+{% set aktif = hasil.baris | selectattr('total') | list %}
+<div style="overflow-x:auto"><table class="rapat">
 <tr><th>Nama Sales</th><th>Status</th><th class="num">Omset Total</th>
 <th class="num">GP Aksesoris</th><th class="num">Ins. Aksesoris</th>
 <th class="num">Unit HP</th><th class="num">Ins. HP</th>
 <th class="num">Unit Laptop</th><th class="num">Ins. Laptop</th>
 <th class="num">Total</th></tr>
-{% for b in hasil.baris %}
+{% for b in aktif %}
 <tr><td>{{ b.nama }}</td><td class="mut">{{ b.status }}</td>
 <td class="num">{{ '{:,.0f}'.format(b.omset_total) }}</td>
 <td class="num">{{ '{:,.0f}'.format(b.gp_aksesoris) }}</td>
@@ -149,7 +153,9 @@ lalu ajukan ulang.</p>
 </table></div>
 <p class="mut" style="margin-top:10px">Tarif per unit mengikuti tingkat achievement omset
 masing-masing sales. Insentif aksesoris = {{ 5 }}% dari gross profit.
-Jumlah faktur yang diproses: {{ '{:,}'.format(hasil.jumlah_faktur_diproses) }}.</p>
+Jumlah faktur yang diproses: {{ '{:,}'.format(hasil.jumlah_faktur_diproses) }}.
+{% set nihil = hasil.baris | length - aktif | length %}
+{% if nihil %}{{ nihil }} sales tanpa insentif bulan ini tidak ditampilkan.{% endif %}</p>
 </div>
 
 <div class="card"><h2>Insentif Team</h2>

@@ -114,8 +114,23 @@ def _peta_nama(daftar_sales):
     return peta
 
 
+BUKAN_NAMA = {"", "N/A", "NA", "-", "NULL", "NONE"}
+
+
+def _cocok_bulan(f, bulan, tahun):
+    tgl = _amb(f, "TGL FAKTUR", "Tanggal Faktur")
+    if _bulan(tgl) != bulan:
+        return False
+    if tahun:
+        th = getattr(tgl, "year", None)
+        if th and th != tahun:
+            return False
+    return True
+
+
 def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
-                 daftar_sales=None, pct_bagi_hasil_teknisi=None):
+                 daftar_sales=None, pct_bagi_hasil_teknisi=None,
+                 daftarkan_baru=None):
     """
     Omset & gross profit  : per baris barang, diatribusikan ke Nama Default Penjual
                             milik pelanggan.
@@ -146,6 +161,33 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
             penjual[pid] = str(_amb(p, "Nama Default Penjual", "Default Penjual",
                                     "Nama Default Penjual Pelanggan") or "").strip()
 
+    # --- pra-pindai: nama penjual apa saja yang muncul di data bulan ini.
+    # Bila ada yang belum terdaftar, `daftarkan_baru` dipanggil supaya pemanggil
+    # bisa menambahkannya ke Master Sales lalu mengembalikan daftar terbaru.
+    if daftarkan_baru is not None:
+        muncul, terlihat = [], set()
+        for f in faktur:
+            if not _cocok_bulan(f, bulan, tahun):
+                continue
+            pid = str(_amb(f, "ID Pelanggan") or "").strip()
+            for n in (penjual.get(pid, ""),
+                      _amb(f, "Nama Default Penjual Pelanggan Faktur Penjualan",
+                           "Nama Default Penjual", "Default Penjual"),
+                      _amb(f, "Yang Menyerahkan/Menjual Faktur Penjualan",
+                           "Yang Menyerahkan/Menjual")):
+                n = str(n or "").strip()
+                if n.upper() in BUKAN_NAMA or _k(n) in terlihat:
+                    continue
+                terlihat.add(_k(n))
+                muncul.append(n)
+        nama_baru = [n for n in muncul if _k(n) not in peta]
+        if nama_baru:
+            daftar_sales = daftarkan_baru(nama_baru) or daftar_sales
+            peta = _peta_nama(daftar_sales)
+        hasil_tambahan = nama_baru
+    else:
+        hasil_tambahan = []
+
     omset = defaultdict(lambda: defaultdict(float))
     gp = defaultdict(lambda: defaultdict(float))
     unit = defaultdict(lambda: defaultdict(set))
@@ -154,12 +196,8 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
     tak_dikenal = defaultdict(float)
 
     for f in faktur:
-        if _bulan(_amb(f, "TGL FAKTUR", "Tanggal Faktur")) != bulan:
+        if not _cocok_bulan(f, bulan, tahun):
             continue
-        if tahun:
-            th = getattr(_amb(f, "TGL FAKTUR", "Tanggal Faktur"), "year", None)
-            if th and th != tahun:
-                continue
         dipakai += 1
         pid = str(_amb(f, "ID Pelanggan") or "").strip()
         kat = str(_amb(f, "Kategori Barang") or "").strip().upper()
@@ -239,4 +277,5 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
         "total": round(total_insentif) + insentif_team,
         "jumlah_faktur_diproses": dipakai,
         "nama_tak_dikenal": sorted(tak_dikenal),
+        "nama_baru_didaftarkan": hasil_tambahan,
     }

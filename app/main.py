@@ -226,7 +226,7 @@ def boleh_lihat_nominal(u):
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, tab: str = "", cabang: int = 0, bulan: int = 0,
-         tipe: str = "", tahun: int = 0):
+         tipe: str = "", tahun: int = 0, pesan: str = ""):
     u = current_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -261,6 +261,8 @@ def home(request: Request, tab: str = "", cabang: int = 0, bulan: int = 0,
     tautan = "".join(f"&{k}={v}" for k, v in
                      (("cabang", cabang), ("bulan", bulan), ("tahun", tahun),
                       ("tipe", tipe)) if v)
+    # alamat untuk kembali ke tampilan yang sama sesudah menghapus
+    url_kembali = quote(f"/?tab={tab}{tautan}", safe="")
 
     return render(request, "dashboard.html", items=items, inbox=inbox, tautan=tautan,
                   tab=tab, TAB=TAB, jumlah=jumlah,
@@ -268,7 +270,37 @@ def home(request: Request, tab: str = "", cabang: int = 0, bulan: int = 0,
                   branches=db.query(Branch).order_by(Branch.name).all(),
                   tahun_ada=sorted({x.period_year for x in semua}, reverse=True),
                   lihat_nominal=boleh_lihat_nominal(u),
-                  boleh_unduh=u.role in PELIHAT_SEMUA)
+                  boleh_unduh=u.role in PELIHAT_SEMUA,
+                  boleh_hapus=u.role == ROLE_ADMIN, pesan=pesan,
+                  url_kembali=url_kembali)
+
+
+# ------------------------------------------------- hapus pengajuan (admin)
+@app.get("/pengajuan/{sid}/hapus", response_class=HTMLResponse)
+def hapus_konfirmasi(request: Request, sid: int, kembali: str = "/"):
+    require(request, [ROLE_ADMIN])
+    db = db_()
+    sub = db.query(Submission).get(sid)
+    if not sub:
+        raise HTTPException(404, "Pengajuan tidak ditemukan")
+    return render(request, "hapus.html", sub=sub, kembali=kembali,
+                  lampiran=db.query(Attachment).filter_by(submission_id=sid).count())
+
+
+@app.post("/pengajuan/{sid}/hapus")
+def hapus_pengajuan(request: Request, sid: int, kembali: str = Form("/")):
+    require(request, [ROLE_ADMIN])
+    db = db_()
+    sub = db.query(Submission).get(sid)
+    if not sub:
+        raise HTTPException(404, "Pengajuan tidak ditemukan")
+    kode = sub.code
+    db.query(Attachment).filter_by(submission_id=sid).delete()
+    db.query(Approval).filter_by(submission_id=sid).delete()
+    db.delete(sub)
+    db.commit()
+    pemisah = "&" if "?" in kembali else "?"
+    return RedirectResponse(f"{kembali}{pemisah}pesan=Pengajuan+{kode}+dihapus", 303)
 
 
 # ------------------------------------------------- kelola akun
@@ -734,20 +766,40 @@ async def new_submit(request: Request,
             p1 = await simpan(f_pelanggan, "Data Pelanggan")
             p2 = await simpan(f_faktur, "Rincian Faktur Penjualan")
             temps += [p1, p2]
-            daftar = [{"nama": x.name, "status": x.status_karyawan, "alias": x.aliases}
-                      for x in db.query(Sales)
-                                 .filter_by(branch_id=cabang_utama, active=True)
-                                 .order_by(Sales.name).all()]
-            if not daftar:
-                raise calc.CalcError("Belum ada data sales aktif untuk cabang ini. "
-                                     "Lengkapi dulu lewat menu Master Sales.")
-            hasil = calc_sales.hitung_sales(p1, p2, bulan, tahun, daftar)
+            def daftar_sales_cabang():
+                return [{"nama": x.name, "status": x.status_karyawan,
+                         "alias": x.aliases}
+                        for x in db.query(Sales)
+                                   .filter_by(branch_id=cabang_utama, active=True)
+                                   .order_by(Sales.name).all()]
+
+            def daftarkan_baru(nama_baru):
+                """Nama penjual yang muncul di faktur tapi belum ada di Master
+                Sales langsung didaftarkan, supaya insentifnya tidak hilang."""
+                for n in nama_baru:
+                    db.add(Sales(branch_id=cabang_utama, name=n,
+                                 status_karyawan="Team Inti", active=True))
+                db.commit()
+                return daftar_sales_cabang()
+
+            daftar = daftar_sales_cabang()
+            hasil = calc_sales.hitung_sales(p1, p2, bulan, tahun, daftar,
+                                            daftarkan_baru=daftarkan_baru)
             sub.total_amount = hasil["total"]
             sub.data_json = json.dumps(hasil, default=str)
+            catatan = []
+            if hasil.get("nama_baru_didaftarkan"):
+                nb = hasil["nama_baru_didaftarkan"]
+                catatan.append(f"{len(nb)} nama penjual belum ada di Master Sales dan "
+                               "otomatis ditambahkan: " + ", ".join(nb[:15])
+                               + ("…" if len(nb) > 15 else "")
+                               + ". Periksa di menu Master Sales bila ada yang salah "
+                                 "ketik atau bukan sales.")
             if hasil["nama_tak_dikenal"]:
-                sub.note = ("Nama penjual berikut ada di data tapi belum terdaftar di "
-                            "Master Sales, jadi transaksinya tidak dihitung: "
-                            + ", ".join(hasil["nama_tak_dikenal"][:15]))
+                catatan.append("Nama penjual berikut ada di data tapi belum terdaftar "
+                               "di Master Sales, jadi transaksinya tidak dihitung: "
+                               + ", ".join(hasil["nama_tak_dikenal"][:15]))
+            sub.note = " ".join(catatan) or None
             db.commit()
             return RedirectResponse(f"/pengajuan/{sub.id}", 303)
 
