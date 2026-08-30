@@ -31,31 +31,53 @@ def _k(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
-def _baca_tabel(path, wajib, batas_header=12):
-    """Cari baris header yang memuat semua kolom `wajib`, kembalikan list-of-dict."""
+def _amb(d, *nama):
+    """Ambil nilai kolom dengan beberapa kemungkinan nama header."""
+    for n in nama:
+        v = d.get(_k(n))
+        if v not in (None, ""):
+            return v
+    return None
+
+
+def _baris_sheet(path):
+    """Baca sheet pertama. Sebagian ekspor menulis <dimension ref="A1"/> yang
+    salah sehingga mode read_only hanya melihat satu baris; ukurannya kita
+    kosongkan supaya seluruh baris tetap terbaca."""
     wb = load_workbook(path, data_only=True, read_only=True)
-    ws = wb[wb.sheetnames[0]]
-    rows = []
-    for i, r in enumerate(ws.iter_rows(values_only=True)):
-        rows.append(r)
-        if i > 5000 and len(rows) > 5000:
-            pass
+    try:
+        ws = wb[wb.sheetnames[0]]
+        ws._max_row = None
+        ws._max_column = None
+        return [r for r in ws.iter_rows(values_only=True)]
+    finally:
+        wb.close()
+
+
+def _baca_tabel(path, wajib, batas_header=12):
+    """Cari baris header yang memuat semua kolom `wajib`, kembalikan list-of-dict.
+
+    Tiap unsur `wajib` boleh berupa satu nama kolom atau daftar nama alternatif
+    (nama header berbeda-beda antar versi ekspor).
+    """
+    rows = _baris_sheet(path)
+    pilihan = [[w] if isinstance(w, str) else list(w) for w in wajib]
     header_idx = None
     for i, r in enumerate(rows[:batas_header]):
         kunci = {_k(c) for c in r if c is not None}
-        if all(_k(w) in kunci for w in wajib):
+        if all(any(_k(a) in kunci for a in alt) for alt in pilihan):
             header_idx = i
             break
     if header_idx is None:
-        raise CalcError("Kolom " + ", ".join(wajib) + " tidak ditemukan di file. "
-                        "Pastikan file yang diunggah benar.")
+        raise CalcError("Kolom " + ", ".join(alt[0] for alt in pilihan)
+                        + " tidak ditemukan di file. "
+                          "Pastikan file yang diunggah benar.")
     header = [_k(c) for c in rows[header_idx]]
     out = []
     for r in rows[header_idx + 1:]:
         if all(c is None or str(c).strip() == "" for c in r):
             continue
         out.append({h: v for h, v in zip(header, r) if h})
-    wb.close()
     return out
 
 
@@ -105,7 +127,10 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
     if pct_bagi_hasil_teknisi is None:
         pct_bagi_hasil_teknisi = rules["pct_bagi_hasil_teknisi"]
 
-    pelanggan = _baca_tabel(path_pelanggan, ["ID Pelanggan", "Nama Default Penjual"])
+    pelanggan = _baca_tabel(path_pelanggan,
+                            [["ID Pelanggan"],
+                             ["Nama Default Penjual", "Default Penjual",
+                              "Nama Default Penjual Pelanggan"]])
     faktur = _baca_tabel(path_faktur, ["NO FAKTUR", "ID PELANGGAN", "KATEGORI BARANG",
                                        "TOTAL HARGA", "KATEGORI PENJUALAN"])
 
@@ -116,9 +141,10 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
 
     penjual = {}
     for p in pelanggan:
-        pid = str(p.get("idpelanggan") or "").strip()
+        pid = str(_amb(p, "ID Pelanggan") or "").strip()
         if pid:
-            penjual[pid] = str(p.get("namadefaultpenjual") or "").strip()
+            penjual[pid] = str(_amb(p, "Nama Default Penjual", "Default Penjual",
+                                    "Nama Default Penjual Pelanggan") or "").strip()
 
     omset = defaultdict(lambda: defaultdict(float))
     gp = defaultdict(lambda: defaultdict(float))
@@ -128,25 +154,27 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
     tak_dikenal = defaultdict(float)
 
     for f in faktur:
-        if _bulan(f.get("tglfaktur")) != bulan:
+        if _bulan(_amb(f, "TGL FAKTUR", "Tanggal Faktur")) != bulan:
             continue
         if tahun:
-            th = getattr(f.get("tglfaktur"), "year", None)
+            th = getattr(_amb(f, "TGL FAKTUR", "Tanggal Faktur"), "year", None)
             if th and th != tahun:
                 continue
         dipakai += 1
-        pid = str(f.get("idpelanggan") or "").strip()
-        kat = str(f.get("kategoribarang") or "").strip().upper()
-        kat_jual = str(f.get("kategoripenjualan") or "").strip().upper()
-        total = _num(f.get("totalharga"))
-        beli = _num(f.get("hargabeli"))
-        no = str(f.get("nofaktur") or "")
+        pid = str(_amb(f, "ID Pelanggan") or "").strip()
+        kat = str(_amb(f, "Kategori Barang") or "").strip().upper()
+        kat_jual = str(_amb(f, "Kategori Penjualan") or "").strip().upper()
+        total = _num(_amb(f, "Total Harga"))
+        beli = _num(_amb(f, "Harga Beli"))
+        no = str(_amb(f, "No Faktur") or "")
 
-        if kat == "JASA" and _k(f.get("kategoripelanggan")) == _k("MEMBER REGULER"):
+        if kat == "JASA" and _k(_amb(f, "Kategori Pelanggan")) == _k("MEMBER REGULER"):
             bagi_hasil_member += total * (1 - pct_bagi_hasil_teknisi / 100)
 
         # --- omset & gross profit: lewat Nama Default Penjual pelanggan
-        asli = penjual.get(pid, "")
+        asli = penjual.get(pid, "") or str(
+            _amb(f, "Nama Default Penjual Pelanggan Faktur Penjualan",
+                 "Nama Default Penjual", "Default Penjual") or "").strip()
         sales = cocokkan(asli)
         if asli and not sales:
             tak_dikenal[asli] += total
@@ -156,7 +184,8 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
                 gp[sales][kat] += total - beli
 
         # --- jumlah unit: lewat kolom Yang Menyerahkan/Menjual
-        asli2 = str(f.get("yangmenyerahkanmenjualfakturpenjualan") or "").strip()
+        asli2 = str(_amb(f, "Yang Menyerahkan/Menjual Faktur Penjualan",
+                         "Yang Menyerahkan/Menjual") or "").strip()
         penjual_faktur = cocokkan(asli2)
         if asli2 and not penjual_faktur:
             tak_dikenal.setdefault(asli2, 0.0)

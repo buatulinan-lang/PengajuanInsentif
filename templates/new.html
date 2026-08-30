@@ -34,8 +34,8 @@ cabang lama &mdash; pengali proporsinya dihitung otomatis dari bulan efektif mut
 <h2>Laporan Keuangan Seluruh Cabang</h2>
 <p class="mut" style="margin-top:-8px">Unggah satu file Laporan Keuangan MGI berisi
 seluruh cabang (tiap cabang satu sheet). Laba bersih tiap cabang dihitung dengan cara
-yang sama seperti Insentif Store Leader, lalu dijumlahkan. Cabang yang ditandai
-tidak ikut hitung ARM di Master Cabang dikecualikan.</p>
+yang sama seperti Insentif Store Leader, lalu dijumlahkan. Cabang mana saja yang
+ikut dihitung dapat dipilih di bawah.</p>
 <div class="grid">
 <div><label>Laporan Keuangan MGI (.xlsx)</label>
   <input type="file" name="f_arm" accept=".xlsx,.xlsm"></div>
@@ -45,6 +45,22 @@ tidak ikut hitung ARM di Master Cabang dikecualikan.</p>
   <span class="mut" style="font-size:12px">&ge;100%&nbsp;&rarr;&nbsp;100% &middot;
   &gt;90%&nbsp;&rarr;&nbsp;80% &middot; &gt;80%&nbsp;&rarr;&nbsp;70% &middot;
   &gt;70%&nbsp;&rarr;&nbsp;60% &middot; &le;70%&nbsp;&rarr;&nbsp;50%</span></div>
+</div>
+
+<h3 style="margin-bottom:4px">Cabang yang Dihitung</h3>
+<p class="mut" style="margin-top:0">Hilangkan centang pada cabang yang laba bersihnya
+tidak ikut dijumlahkan bulan ini. Centang awal mengikuti pengaturan Master Cabang.</p>
+<p style="margin:0 0 8px">
+  <a href="#" onclick="armSemua(true);return false">Centang semua</a> &middot;
+  <a href="#" onclick="armSemua(false);return false">Kosongkan semua</a></p>
+<input type="hidden" name="arm_cabang" value="0">
+<div id="arm-cabang" style="display:grid;gap:6px 18px;
+     grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
+{% for b in branches %}
+  <label style="font-weight:400;display:flex;gap:8px;align-items:center">
+    <input type="checkbox" name="arm_cabang" value="{{ b.id }}"
+           {% if b.hitung_arm %}checked{% endif %}> {{ b.name }}</label>
+{% endfor %}
 </div>
 </div>
 
@@ -182,6 +198,11 @@ function ganti(){
     .forEach(i => i.required = purc);
   document.querySelectorAll('#bagian-arm input[type=file]')
     .forEach(i => i.required = arm);
+}
+
+function armSemua(nilai) {
+  document.querySelectorAll('#arm-cabang input[type=checkbox]')
+    .forEach(c => c.checked = nilai);
 }
 
 tambah('tunggal');

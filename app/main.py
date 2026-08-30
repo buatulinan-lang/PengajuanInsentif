@@ -682,7 +682,8 @@ async def new_submit(request: Request,
                      f_faktur: Union[UploadFile, str] = File(None),
                      f_accurate: Union[UploadFile, str] = File(None),
                      f_arm: Union[UploadFile, str] = File(None),
-                     prioritas_pct: str = Form("")):
+                     prioritas_pct: str = Form(""),
+                     arm_cabang: list[int] = Form([])):
     u = require(request, [ROLE_SL, ROLE_ARM, ROLE_ADMIN])
     db = db_()
     if u.role not in PENGAJU_JENIS.get(jenis, (ROLE_SL, ROLE_ADMIN)):
@@ -753,9 +754,18 @@ async def new_submit(request: Request,
         if jenis == "profit_arm":
             p1 = await simpan(f_arm, "Laporan Keuangan MGI")
             temps.append(p1)
-            daftar = [{"nama": b.name, "ikut": bool(b.hitung_arm)}
+            # Pengaju boleh mencentang sendiri cabang mana yang dihitung.
+            # Nilai 0 adalah penanda bahwa daftar centang ikut terkirim; tanpa
+            # penanda itu kita pakai pengaturan Master Cabang.
+            dipilih = {i for i in arm_cabang if i}
+            pakai_pilihan = 0 in arm_cabang
+            daftar = [{"nama": b.name,
+                       "ikut": (b.id in dipilih) if pakai_pilihan
+                               else bool(b.hitung_arm)}
                       for b in db.query(Branch).filter_by(active=True)
                                  .order_by(Branch.name).all()]
+            if pakai_pilihan and not dipilih:
+                raise calc.CalcError("Pilih minimal satu cabang yang dihitung.")
             hasil = calc_arm.hitung_arm(p1, bulan, tahun, daftar,
                                         laba_ditahan_pct, prioritas, goals)
             sub.total_amount = hasil["total"]
