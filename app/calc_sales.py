@@ -40,45 +40,56 @@ def _amb(d, *nama):
     return None
 
 
-def _baris_sheet(path):
-    """Baca sheet pertama. Sebagian ekspor menulis <dimension ref="A1"/> yang
+def _baris_sheet(ws, batas=None):
+    """Baca isi satu sheet. Sebagian ekspor menulis <dimension ref="A1"/> yang
     salah sehingga mode read_only hanya melihat satu baris; ukurannya kita
     kosongkan supaya seluruh baris tetap terbaca."""
-    wb = load_workbook(path, data_only=True, read_only=True)
-    try:
-        ws = wb[wb.sheetnames[0]]
-        ws._max_row = None
-        ws._max_column = None
-        return [r for r in ws.iter_rows(values_only=True)]
-    finally:
-        wb.close()
+    ws._max_row = None
+    ws._max_column = None
+    keluar = []
+    for i, r in enumerate(ws.iter_rows(values_only=True)):
+        keluar.append(r)
+        if batas is not None and i + 1 >= batas:
+            break
+    return keluar
+
+
+def _cari_header(rows, pilihan):
+    for i, r in enumerate(rows):
+        kunci = {_k(c) for c in r if c is not None}
+        if all(any(_k(a) in kunci for a in alt) for alt in pilihan):
+            return i
+    return None
 
 
 def _baca_tabel(path, wajib, batas_header=12):
     """Cari baris header yang memuat semua kolom `wajib`, kembalikan list-of-dict.
 
     Tiap unsur `wajib` boleh berupa satu nama kolom atau daftar nama alternatif
-    (nama header berbeda-beda antar versi ekspor).
+    (nama header berbeda-beda antar versi ekspor). Semua sheet ditelusuri, jadi
+    berkas yang datanya tidak berada di sheet pertama tetap terbaca.
     """
-    rows = _baris_sheet(path)
     pilihan = [[w] if isinstance(w, str) else list(w) for w in wajib]
-    header_idx = None
-    for i, r in enumerate(rows[:batas_header]):
-        kunci = {_k(c) for c in r if c is not None}
-        if all(any(_k(a) in kunci for a in alt) for alt in pilihan):
-            header_idx = i
-            break
-    if header_idx is None:
-        raise CalcError("Kolom " + ", ".join(alt[0] for alt in pilihan)
-                        + " tidak ditemukan di file. "
-                          "Pastikan file yang diunggah benar.")
-    header = [_k(c) for c in rows[header_idx]]
-    out = []
-    for r in rows[header_idx + 1:]:
-        if all(c is None or str(c).strip() == "" for c in r):
-            continue
-        out.append({h: v for h, v in zip(header, r) if h})
-    return out
+    wb = load_workbook(path, data_only=True, read_only=True)
+    try:
+        for nama in wb.sheetnames:
+            awal = _baris_sheet(wb[nama], batas_header)
+            idx = _cari_header(awal, pilihan)
+            if idx is None:
+                continue
+            rows = _baris_sheet(wb[nama])
+            header = [_k(c) for c in rows[idx]]
+            keluar = []
+            for r in rows[idx + 1:]:
+                if all(c is None or str(c).strip() == "" for c in r):
+                    continue
+                keluar.append({h: v for h, v in zip(header, r) if h})
+            return keluar
+    finally:
+        wb.close()
+    raise CalcError("Kolom " + ", ".join(alt[0] for alt in pilihan)
+                    + " tidak ditemukan di berkas. "
+                      "Pastikan berkas yang diunggah benar.")
 
 
 def _bulan(v):

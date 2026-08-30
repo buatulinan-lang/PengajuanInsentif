@@ -106,15 +106,18 @@ pembelian diproses.</p>
 </table></div>
 
 {% if hasil.supplier_tak_terdaftar %}
-<div class="card"><h2>Pemasok Belum Terdaftar</h2>
-<p class="mut" style="margin-top:-6px">Pembelian berikut tidak ikut dihitung karena
-pemasoknya belum ada di Master Supplier. Tambahkan bila memang perlu dihitung,
-lalu ajukan ulang.</p>
-<table><tr><th>Pemasok</th><th class="num">Nilai Pembelian</th></tr>
+<div class="card"><details>
+<summary style="cursor:pointer;font-weight:600;color:var(--navy)">Pemeriksaan internal:
+{{ hasil.supplier_tak_terdaftar|length }} pemasok belum terdaftar
+({{ rupiah(hasil.nilai_tak_terdaftar) }})</summary>
+<p class="mut">Pembelian berikut tidak ikut dihitung karena pemasoknya belum ada di
+Master Supplier. Tambahkan bila memang perlu dihitung, lalu ajukan ulang. Daftar ini
+hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
+<table class="rapat"><tr><th>Pemasok</th><th class="num">Nilai Pembelian</th></tr>
 {% for x in hasil.supplier_tak_terdaftar %}
 <tr><td>{{ x.pemasok }}</td><td class="num">{{ rupiah(x.nilai) }}</td></tr>{% endfor %}
 <tr><th>Total dikeluarkan</th><th class="num">{{ rupiah(hasil.nilai_tak_terdaftar) }}</th></tr>
-</table></div>{% endif %}
+</table></details></div>{% endif %}
 
 <div class="card"><h2>Rincian per Pemasok</h2>
 <div style="overflow-x:auto"><table>

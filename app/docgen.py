@@ -406,16 +406,6 @@ def _tabel_purchasing(doc, hasil):
     _baris(t, ["INSENTIF FINAL", angka(hasil["total"])], lebar, 10, True, KREM,
            kanan={1})
 
-    tak = hasil.get("supplier_tak_terdaftar") or []
-    if tak:
-        _paragraf(doc, spasi_setelah=4)
-        _paragraf(doc, "Pemasok belum terdaftar pada master kategori supplier "
-                       "sehingga tidak ikut diperhitungkan:", 9, spasi_setelah=4)
-        t2 = _tabel(doc, ["Pemasok", "Nilai Pembelian"], lebar, 9)
-        for x in tak:
-            _baris(t2, [x["pemasok"], angka(x["nilai"])], lebar, 9, kanan={1})
-        _baris(t2, ["Total dikeluarkan", angka(hasil["nilai_tak_terdaftar"])],
-               lebar, 9, True, KREM_MUDA, kanan={1})
 
 
 def _tabel_arm(doc, hasil):
