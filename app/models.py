@@ -123,6 +123,7 @@ class Submission(Base):
     type = Column(String, nullable=False)
     branch_id = Column(Integer, ForeignKey("branches.id"))
     submitter_id = Column(Integer, ForeignKey("users.id"))
+    submitter_name = Column(String)   # nama pengaju versi ketikan, boleh beda akun
     period_month = Column(Integer)
     period_year = Column(Integer)
     total_amount = Column(Float, default=0)

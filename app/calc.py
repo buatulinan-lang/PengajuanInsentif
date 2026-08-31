@@ -273,8 +273,24 @@ def hitung_pengurang_goal(goals):
             "ambang_pct": ambang}
 
 
-def hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct=None, goals=None):
-    """Hitung seluruh blok cabang pada satu pengajuan, lalu terapkan pengurang goal."""
+def insentif_shift(kode):
+    """Insentif shift masuk Store Leader: 3 hari/pekan atau 6 hari/pekan."""
+    if not kode:
+        return None
+    rules = json.load(open(RULES_PATH)).get("shift_sl", {})
+    for p in rules.get("pilihan", []):
+        if str(p["kode"]) == str(kode):
+            return dict(p)
+    return None
+
+
+def hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct=None, goals=None,
+                     shift=None):
+    """Hitung seluruh blok cabang pada satu pengajuan, lalu terapkan pengurang goal.
+
+    Insentif shift masuk ditambahkan setelah potongan goal, karena nilainya
+    tetap dan tidak bergantung pada pencapaian laba.
+    """
     hasil, catatan = [], []
     for i, blok in enumerate(blok_list, 1):
         try:
@@ -288,9 +304,15 @@ def hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct=None, goals=None)
     for p in g.get("rincian_potongan", []):
         p["nilai"] = round(subtotal * p["pct"] / 100)
 
+    sh = insentif_shift(shift)
+    nilai_shift = sh["nominal"] if sh else 0
+
     return {"blok": hasil, "subtotal_blok": subtotal,
             "goal": g["goal"], "potongan_pct": g["potongan_pct"],
             "rincian_potongan": g.get("rincian_potongan", []),
             "ambang_goal_pct": g.get("ambang_pct", 98),
-            "potongan": potongan, "total": subtotal - potongan,
+            "potongan": potongan,
+            "insentif_profit": subtotal - potongan,
+            "shift": sh, "insentif_shift": nilai_shift,
+            "total": subtotal - potongan + nilai_shift,
             "catatan": catatan}

@@ -298,6 +298,11 @@ def _penutup_ttd(doc, sub, approvals, base_url):
             r.font.color.rgb = ABU
 
         nama = a.user.full_name if a else "—"
+        # Kolom pengaju memakai nama yang diketik pada formulir, karena akun
+        # cabang bisa dipakai oleh Store Leader yang berbeda.
+        peran_pengaju = "arm" if sub.type == "profit_arm" else "store_leader"
+        if peran == peran_pengaju and getattr(sub, "submitter_name", None):
+            nama = sub.submitter_name
         pn = _teks(t.rows[2].cells[i], nama, 9.5, True, WD_ALIGN_PARAGRAPH.CENTER)
         pn.runs[0].underline = True
 
@@ -348,6 +353,10 @@ def _tabel_profit(doc, hasil):
     for p in hasil.get("rincian_potongan", []):
         _baris_lebar(t, f"Pengurang {p['pct']:.0f}% — {p['nama']}",
                      "− " + angka(p["nilai"]), lebar, 8, arsir=KREM_MUDA)
+    if hasil.get("shift"):
+        _baris_lebar(t, f"Insentif shift masuk — {hasil['shift']['label']}",
+                     "+ " + angka(hasil.get("insentif_shift", 0)), lebar, 8.5,
+                     arsir=KREM_MUDA)
     _baris_lebar(t, "TOTAL INSENTIF YANG DIDAPAT", angka(hasil.get("total", 0)),
                  lebar, 9.5, True, KREM)
     _catatan(doc, "Laba Bersih dihitung dari Total Laba Bersih Setelah Prepaid "

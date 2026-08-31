@@ -3,7 +3,8 @@
 <h1>{{ TYPES[s.type].label }} <span class="mut">· {{ s.code }}</span></h1>
 <div class="grid">
 <div><span class="mut">Cabang</span><br>{{ s.branch.name if s.branch }}</div>
-<div><span class="mut">Pengaju</span><br>{{ s.submitter.full_name }}</div>
+<div><span class="mut">Pengaju</span><br>{{ s.submitter_name or
+  (s.submitter.full_name if s.submitter) }}</div>
 <div><span class="mut">Periode</span><br>{{ BULAN[s.period_month] }} {{ s.period_year }}</div>
 <div><span class="mut">Total Insentif</span><br><b>{{ rupiah(s.total_amount) }}</b></div>
 </div>
@@ -236,6 +237,10 @@ Jumlah faktur yang diproses: {{ '{:,}'.format(hasil.jumlah_faktur_diproses) }}.
 <tr><td>Pengurang {{ p.pct }}% &mdash; {{ p.nama }}</td>
     <td class="num">&minus; {{ rupiah(p.nilai) }}</td></tr>
 {% endfor %}
+{% if hasil.shift %}
+<tr><td>Insentif shift masuk &mdash; {{ hasil.shift.label }}</td>
+    <td class="num">+ {{ rupiah(hasil.insentif_shift) }}</td></tr>
+{% endif %}
 <tr><th>TOTAL INSENTIF YANG DIDAPAT</th>
 <th class="num" style="font-size:16px">{{ rupiah(hasil.total) }}</th></tr>
 </table></div>

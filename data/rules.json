@@ -352,5 +352,19 @@
         "label": "<= 70%"
       }
     ]
+  },
+  "shift_sl": {
+    "pilihan": [
+      {
+        "kode": "3",
+        "label": "3 hari/pekan",
+        "nominal": 250000
+      },
+      {
+        "kode": "6",
+        "label": "6 hari/pekan",
+        "nominal": 500000
+      }
+    ]
   }
 }

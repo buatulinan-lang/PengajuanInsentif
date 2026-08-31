@@ -715,7 +715,8 @@ async def new_submit(request: Request,
                      f_accurate: Union[UploadFile, str] = File(None),
                      f_arm: Union[UploadFile, str] = File(None),
                      prioritas_pct: str = Form(""),
-                     arm_cabang: list[int] = Form([])):
+                     arm_cabang: list[int] = Form([]),
+                     shift_sl: str = Form("")):
     u = require(request, [ROLE_SL, ROLE_ARM, ROLE_ADMIN])
     db = db_()
     if u.role not in PENGAJU_JENIS.get(jenis, (ROLE_SL, ROLE_ADMIN)):
@@ -731,9 +732,16 @@ async def new_submit(request: Request,
         pusat = db.query(Branch).filter_by(name="Pusat").first()
         cabang_utama = pusat.id if pusat else (b_asal[0] if b_asal else None)
     else:
+        # Kop surat dan cabang pengajuan mengikuti cabang tujuan bila Store
+        # Leader sedang dalam masa rotasi; cabang asal hanya sumber angka.
         cabang_utama = b_asal[0]
+        for i, t in enumerate(blok_tipe):
+            if t == "rotasi" and i < len(b_tujuan) and b_tujuan[i]:
+                cabang_utama = b_tujuan[i]
+                break
     code = f"INS/{datetime.now():%Y%m}/{secrets.token_hex(3).upper()}"
     sub = Submission(code=code, type=jenis, branch_id=cabang_utama, submitter_id=u.id,
+                     submitter_name=(nama or "").strip() or u.full_name,
                      period_month=bulan, period_year=tahun, status=ST_DRAFT)
     db.add(sub); db.commit()
 
@@ -856,7 +864,8 @@ async def new_submit(request: Request,
                              "mutasi_bulan": mut_bulan[i], "mutasi_tahun": mut_tahun[i]})
             blok_list.append(blok)
 
-        hasil = calc.hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct, goals)
+        hasil = calc.hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct,
+                                      goals, shift_sl)
         sub.total_amount = hasil["total"]
         sub.data_json = json.dumps(hasil, default=str)
         if hasil["catatan"]:
