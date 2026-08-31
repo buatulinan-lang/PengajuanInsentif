@@ -338,10 +338,15 @@ def _tabel_profit(doc, hasil):
             label = d["cabang"]
             if bl["tipe"] == "rotasi":
                 label += "\n(cabang " + ("asal" if peran == "asal" else "tujuan") + ")"
+            dihitung = d.get("dihitung", True)
+            if not dihitung:
+                label += "\n(tidak dihitung — sudah masuk baris lain)"
             _baris(t, [label, angka(h["omzet"]), angka(h["laba_kotor_sesudah_fee"]),
                        angka(h["biaya_operasional"]), angka(h["laba_bersih"]),
                        f"{h['gp_pct']}%", f"{d['pengali']:.0f}%",
-                       angka(d["insentif"])], lebar, kanan=kanan)
+                       angka(d["insentif"]) if dihitung else "—"],
+                   lebar, kanan=kanan,
+                   arsir=None if dihitung else KREM_MUDA)
         if bl["tipe"] == "rotasi":
             _baris_lebar(t, f"Rotasi efektif {bl['mutasi']} — pengajuan jatuh pada "
                             f"{bl['offset_label']}. {bl['kasus']}.", "", lebar,

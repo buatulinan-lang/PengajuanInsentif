@@ -204,16 +204,24 @@ Jumlah faktur yang diproses: {{ '{:,}'.format(hasil.jumlah_faktur_diproses) }}.
   <h2 style="margin-top:16px">Cabang Asal &mdash; {{ bl.asal.cabang }}</h2>
   {{ rincian(bl.asal.hasil) }}
   <table><tr><td>Pengali proporsi</td><td class="num">{{ bl.asal.pengali }}%</td></tr>
-  <tr><th>Insentif Cabang Asal</th><th class="num">{{ rupiah(bl.asal.insentif) }}</th></tr></table>
+  <tr><th>Insentif Cabang Asal</th><th class="num">
+    {% if bl.asal.dihitung == false %}<span class="mut">tidak dihitung &mdash;
+      {{ bl.asal.alasan }}</span>{% else %}{{ rupiah(bl.asal.insentif) }}{% endif %}
+  </th></tr></table>
   <h2 style="margin-top:18px">Cabang Tujuan &mdash; {{ bl.tujuan.cabang }}</h2>
   {{ rincian(bl.tujuan.hasil) }}
   <table><tr><td>Pengali proporsi</td><td class="num">{{ bl.tujuan.pengali }}%</td></tr>
-  <tr><th>Insentif Cabang Tujuan</th><th class="num">{{ rupiah(bl.tujuan.insentif) }}</th></tr></table>
+  <tr><th>Insentif Cabang Tujuan</th><th class="num">
+    {% if bl.tujuan.dihitung == false %}<span class="mut">tidak dihitung &mdash;
+      {{ bl.tujuan.alasan }}</span>{% else %}{{ rupiah(bl.tujuan.insentif) }}{% endif %}
+  </th></tr></table>
   <table style="margin-top:12px"><tr><th>Subtotal blok ini</th>
   <th class="num">{{ rupiah(bl.total) }}</th></tr></table>
 {% else %}
   <h2>{{ bl.asal.cabang }} <span class="mut">&middot; cabang tunggal</span></h2>
   {{ rincian(bl.asal.hasil) }}
+  {% if bl.asal.dihitung == false %}
+  <p class="mut">Tidak dihitung &mdash; {{ bl.asal.alasan }}.</p>{% endif %}
   <table><tr><th>Subtotal blok ini</th><th class="num">{{ rupiah(bl.total) }}</th></tr></table>
 {% endif %}
 </div>

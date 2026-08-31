@@ -52,25 +52,37 @@ class JalurAsli:
         await self.app(scope, receive, send)
 
 
-SIAP = {"sudah": False, "galat": None}
+SIAP = {"sudah": False, "galat": None, "coba_lagi": 0.0, "percobaan": 0}
+
+# Jeda sebelum penyiapan dicoba ulang setelah gagal. Tanpa ini, satu kegagalan
+# (mis. database Supabase sedang tidur) membuat aplikasi menolak semua
+# permintaan sampai di-Redeploy manual, padahal databasenya sudah bangun.
+JEDA_COBA_LAGI = 20   # detik
 
 
-def siapkan_sekali():
+def siapkan_sekali(paksa=False):
     """Buat tabel dan data awal saat permintaan pertama, bukan saat impor.
 
     Dijalankan di sini (bukan di tingkat modul) supaya kesalahan konfigurasi
     database muncul sebagai halaman pesan yang terbaca, bukan fungsi yang gagal
-    start tanpa keterangan.
+    start tanpa keterangan. Bila gagal, dicoba ulang otomatis pada permintaan
+    berikutnya sesudah JEDA_COBA_LAGI.
     """
-    if SIAP["sudah"]:
+    import time
+    if SIAP["sudah"] and not SIAP["galat"]:
+        return
+    if SIAP["sudah"] and not paksa and time.time() < SIAP["coba_lagi"]:
         return
     try:
         init_db()
         if os.environ.get("SKIP_SEED") != "1":
             import seed  # noqa: F401
         SIAP["galat"] = None
+        SIAP["percobaan"] = 0
     except Exception as e:
         SIAP["galat"] = f"{type(e).__name__}: {e}"
+        SIAP["percobaan"] += 1
+        SIAP["coba_lagi"] = time.time() + JEDA_COBA_LAGI
         print("PENYIAPAN GAGAL:", SIAP["galat"], flush=True)
     SIAP["sudah"] = True
 
@@ -94,10 +106,21 @@ async def penyiapan(request: Request, call_next):
     siapkan_sekali()
     if SIAP["galat"] and request.url.path not in ("/health", "/diagnosa"):
         galat = SIAP["galat"]
-        if "OperationalError" in galat or "could not connect" in galat.lower():
-            pesan = ("Aplikasi tidak bisa terhubung ke database. Periksa "
-                     "DATABASE_URL di Environment Variables, lalu Redeploy. "
-                     "Rinciannya ada di /diagnosa.")
+        g = galat.lower()
+        if "struktur database belum lengkap" in g or "lock" in g or \
+                "statement timeout" in g:
+            pesan = ("Struktur database sedang diperbarui dan tabelnya masih "
+                     "terkunci oleh proses lain. Tunggu sekitar satu menit lalu "
+                     "muat ulang halaman ini — tidak perlu Redeploy. Bila tetap "
+                     "muncul, jalankan perintah ALTER TABLE yang tertera di "
+                     "/diagnosa lewat SQL Editor Supabase.")
+        elif "OperationalError" in galat or "could not connect" in g:
+            pesan = ("Aplikasi tidak bisa terhubung ke database. Bila memakai "
+                     "Supabase gratis, project bisa tertidur setelah lama tidak "
+                     "dipakai — buka dashboard Supabase dan aktifkan kembali, "
+                     "lalu muat ulang halaman ini (tidak perlu Redeploy). "
+                     "Bila bukan itu, periksa DATABASE_URL di Environment "
+                     "Variables. Rincian teknisnya ada di /diagnosa.")
         else:
             pesan = ("Penyiapan database gagal. Buka /diagnosa untuk melihat "
                      "pesan aslinya. Bila muncul nama kolom yang tidak dikenal, "
@@ -111,7 +134,7 @@ async def penyiapan(request: Request, call_next):
 @app.get("/diagnosa")
 def diagnosa():
     """Ringkasan kesehatan aplikasi. Tidak menampilkan nilai rahasia apa pun."""
-    siapkan_sekali()
+    siapkan_sekali(paksa=True)   # sekaligus mencoba menyambung ulang
     url = os.environ.get("DATABASE_URL", "")
 
     # Periksa bentuk connection string tanpa membocorkan password
@@ -156,6 +179,7 @@ def diagnosa():
         "logo_tersedia": os.path.isfile(os.path.join(STATIC_DIR, "logo-mflash.png")),
         "berkas_rules": os.path.isfile(calc.RULES_PATH),
         "penyiapan_galat": SIAP["galat"],
+        "percobaan_gagal": SIAP["percobaan"],
     }
     try:
         db = db_()
@@ -735,10 +759,16 @@ async def new_submit(request: Request,
         # Kop surat dan cabang pengajuan mengikuti cabang tujuan bila Store
         # Leader sedang dalam masa rotasi; cabang asal hanya sumber angka.
         cabang_utama = b_asal[0]
+        # Bila ada beberapa rotasi, cabang saat ini adalah tujuan dari mutasi
+        # yang paling akhir berlaku — bukan sekadar blok pertama.
+        terbaru = None
         for i, t in enumerate(blok_tipe):
-            if t == "rotasi" and i < len(b_tujuan) and b_tujuan[i]:
-                cabang_utama = b_tujuan[i]
-                break
+            if t != "rotasi" or i >= len(b_tujuan) or not b_tujuan[i]:
+                continue
+            kapan = ((mut_tahun[i] if i < len(mut_tahun) else 0) * 12
+                     + (mut_bulan[i] if i < len(mut_bulan) else 0))
+            if terbaru is None or kapan >= terbaru:
+                terbaru, cabang_utama = kapan, b_tujuan[i]
     code = f"INS/{datetime.now():%Y%m}/{secrets.token_hex(3).upper()}"
     sub = Submission(code=code, type=jenis, branch_id=cabang_utama, submitter_id=u.id,
                      submitter_name=(nama or "").strip() or u.full_name,

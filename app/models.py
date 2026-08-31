@@ -181,21 +181,50 @@ def migrasi():
     Tanpa langkah ini, menambah kolom pada model membuat aplikasi gagal di
     server yang databasenya sudah terisi. Hanya menambah kolom, tidak pernah
     menghapus atau mengubah data.
+
+    Di lingkungan serverless, puluhan instance menjalankan ini serentak.
+    ALTER TABLE butuh kunci eksklusif; permintaan yang mengantre ikut memblokir
+    pembacaan tabel yang sama sampai kena statement timeout, sehingga satu
+    kolom baru bisa membuat seluruh aplikasi menjawab 500. Karena itu:
+      * hanya satu instance yang mengerjakan (advisory lock Postgres),
+      * seluruh perintah dibatasi lock_timeout supaya menyerah cepat,
+      * pembacaan struktur tabel memakai sambungan yang sama (pembacaan ini
+        pun ikut terblokir bila tabel sedang dikunci),
+      * ALTER dibuat idempoten dengan IF NOT EXISTS.
     """
     from sqlalchemy import inspect, text
 
-    insp = inspect(ENGINE)
-    tabel_ada = set(insp.get_table_names())
-    ditambah = []
-    with ENGINE.begin() as conn:
-        for tabel in Base.metadata.sorted_tables:
-            if tabel.name not in tabel_ada:
-                continue
-            punya = {c["name"] for c in insp.get_columns(tabel.name)}
-            for kolom in tabel.columns:
-                if kolom.name in punya:
+    postgres = ENGINE.dialect.name == "postgresql"
+    ditambah, gagal = [], []
+
+    # AUTOCOMMIT: advisory lock harus di luar transaksi, dan tiap ALTER berdiri
+    # sendiri supaya kuncinya langsung dilepas.
+    with ENGINE.connect().execution_options(
+            isolation_level="AUTOCOMMIT") as conn:
+        if postgres:
+            conn.execute(text("SET lock_timeout = '4s'"))
+            conn.execute(text("SET statement_timeout = '20s'"))
+            # Hanya satu instance yang boleh mengubah struktur; sisanya lewat.
+            if not conn.execute(
+                    text("SELECT pg_try_advisory_lock(918273645)")).scalar():
+                print("migrasi: instance lain sedang mengerjakan, dilewati",
+                      flush=True)
+                return []
+        try:
+            insp = inspect(conn)
+            tabel_ada = set(insp.get_table_names())
+            perlu = []
+            for tabel in Base.metadata.sorted_tables:
+                if tabel.name not in tabel_ada:
                     continue
-                sql = f'ALTER TABLE "{tabel.name}" ADD COLUMN "{kolom.name}" {_tipe_sql(kolom)}'
+                punya = {c["name"] for c in insp.get_columns(tabel.name)}
+                perlu += [(tabel.name, k) for k in tabel.columns
+                          if k.name not in punya]
+
+            for nama_tabel, kolom in perlu:
+                ada = "IF NOT EXISTS " if postgres else ""
+                sql = (f'ALTER TABLE "{nama_tabel}" ADD COLUMN {ada}'
+                       f'"{kolom.name}" {_tipe_sql(kolom)}')
                 bawaan = getattr(kolom.default, "arg", None)
                 if isinstance(bawaan, bool):
                     sql += f" DEFAULT {'TRUE' if bawaan else 'FALSE'}"
@@ -203,11 +232,44 @@ def migrasi():
                     sql += f" DEFAULT {bawaan}"
                 elif isinstance(bawaan, str):
                     sql += " DEFAULT '" + bawaan.replace("'", "''") + "'"
-                conn.execute(text(sql))
-                ditambah.append(f"{tabel.name}.{kolom.name}")
+                try:
+                    conn.execute(text(sql))
+                    ditambah.append(f"{nama_tabel}.{kolom.name}")
+                except Exception as e:
+                    gagal.append(f"{nama_tabel}.{kolom.name} "
+                                 f"({type(e).__name__})")
+        except Exception as e:
+            gagal.append(f"pembacaan struktur tabel ({type(e).__name__})")
+        finally:
+            if postgres:
+                try:
+                    conn.execute(text("SELECT pg_advisory_unlock(918273645)"))
+                except Exception:
+                    pass
+
     if ditambah:
-        print("migrasi: kolom ditambahkan ->", ", ".join(ditambah))
+        print("migrasi: kolom ditambahkan ->", ", ".join(ditambah), flush=True)
+    if gagal:
+        print("migrasi: gagal ->", ", ".join(gagal), flush=True)
+        raise RuntimeError(
+            "Struktur database belum selesai diperbarui: " + ", ".join(gagal)
+            + ". Tabel sedang terkunci proses lain; muat ulang halaman "
+              "beberapa saat lagi.")
     return ditambah
+
+
+if DB_URL.startswith("postgresql"):
+    from sqlalchemy import event as _event, text as _text
+
+    @_event.listens_for(ENGINE, "connect")
+    def _batas_kunci(dbapi_conn, _rec):
+        """Jangan pernah menunggu kunci tabel lebih dari beberapa detik."""
+        try:
+            cur = dbapi_conn.cursor()
+            cur.execute("SET lock_timeout = '5s'")
+            cur.close()
+        except Exception:
+            pass
 
 
 def init_db():

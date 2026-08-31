@@ -294,11 +294,43 @@ def hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct=None, goals=None,
     hasil, catatan = [], []
     for i, blok in enumerate(blok_list, 1):
         try:
-            hasil.append(hitung_blok(blok, bulan, tahun, laba_ditahan_pct))
+            b = hitung_blok(blok, bulan, tahun, laba_ditahan_pct)
+            b["nomor"] = i
+            hasil.append(b)
         except CalcError as e:
             catatan.append(f"Blok {i}: {e}")
 
+    # Satu cabang hanya boleh dihitung sekali. Store Leader yang berpindah
+    # lewat beberapa cabang membuat satu cabang muncul di lebih dari satu blok
+    # (mis. cabang tujuan blok pertama menjadi cabang asal blok berikutnya,
+    # atau beberapa blok berbagi cabang tujuan yang sama). Tanpa penyaringan
+    # ini cabang tersebut ikut terhitung berkali-kali.
+    sisi = []
+    for b in hasil:
+        for peran in ("asal", "tujuan"):
+            if b.get(peran):
+                sisi.append((b, peran, b[peran]))
+    dipakai, duplikat = {}, []
+    # Yang dipertahankan adalah kemunculan dengan insentif terbesar, yaitu
+    # pengali proporsional tertinggi untuk cabang itu.
+    for b, peran, d in sorted(sisi, key=lambda x: -x[2]["insentif"]):
+        kunci = re.sub(r"[^a-z0-9]", "", str(d["cabang"]).lower())
+        if kunci in dipakai:
+            d["dihitung"] = False
+            d["alasan"] = f"sudah dihitung pada {dipakai[kunci]}"
+            duplikat.append(d["cabang"])
+        else:
+            d["dihitung"] = True
+            dipakai[kunci] = (f"blok {b['nomor']} sebagai cabang {peran}"
+                              if len(hasil) > 1 else f"cabang {peran}")
+    for b in hasil:
+        b["total"] = sum(b[p]["insentif"] for p in ("asal", "tujuan")
+                         if b.get(p) and b[p].get("dihitung"))
+
     subtotal = sum(b["total"] for b in hasil)
+    if duplikat:
+        catatan.append("Cabang berikut muncul lebih dari sekali dan hanya "
+                       "dihitung satu kali: " + ", ".join(sorted(set(duplikat))))
     g = hitung_pengurang_goal(goals)
     potongan = round(subtotal * g["potongan_pct"] / 100)
     for p in g.get("rincian_potongan", []):
@@ -312,6 +344,7 @@ def hitung_pengajuan(blok_list, bulan, tahun, laba_ditahan_pct=None, goals=None,
             "rincian_potongan": g.get("rincian_potongan", []),
             "ambang_goal_pct": g.get("ambang_pct", 98),
             "potongan": potongan,
+            "cabang_duplikat": sorted(set(duplikat)),
             "insentif_profit": subtotal - potongan,
             "shift": sh, "insentif_shift": nilai_shift,
             "total": subtotal - potongan + nilai_shift,
