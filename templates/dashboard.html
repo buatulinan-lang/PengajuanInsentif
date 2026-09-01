@@ -67,8 +67,7 @@
 <tr>
 {% if boleh_unduh and tab == 'done' %}<th style="width:34px"></th>{% endif %}
 <th>Kode</th><th>Jenis</th><th>Cabang</th><th>Pengaju</th><th>Periode</th>
-{% if lihat_nominal %}<th class="num">Total</th>{% endif %}<th>Status</th>
-{% if boleh_hapus %}<th style="width:60px"></th>{% endif %}</tr>
+{% if lihat_nominal %}<th class="num">Total</th>{% endif %}<th>Status</th><th style="width:60px"></th></tr>
 {% for s in items %}<tr>
 {% if boleh_unduh and tab == 'done' %}
 <td><input type="checkbox" name="sid" value="{{ s.id }}" class="pilih"
@@ -80,8 +79,8 @@
 <td>{{ BULAN[s.period_month] }} {{ s.period_year }}</td>
 {% if lihat_nominal %}<td class="num">{{ rupiah(s.total_amount) }}</td>{% endif %}
 <td>{{ badge(s.status) }}</td>
-{% if boleh_hapus %}<td class="right"><a class="hapus"
- href="/pengajuan/{{ s.id }}/hapus?kembali={{ url_kembali }}">Hapus</a></td>{% endif %}
+<td class="right">{% if boleh_hapus(me, s) %}<a class="hapus"
+ href="/pengajuan/{{ s.id }}/hapus?kembali={{ url_kembali }}">Hapus</a>{% endif %}</td>
 </tr>{% endfor %}
 </table></div>
 

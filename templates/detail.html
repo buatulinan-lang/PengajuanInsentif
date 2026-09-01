@@ -11,7 +11,7 @@
 {% if s.note %}<p class="err" style="margin-top:12px">{{ s.note }}</p>{% endif %}
 <p style="margin-top:14px">
 <a class="btn btn-oranye" href="/pengajuan/{{ s.id }}/dokumen.docx">Unduh Word (ber-QR)</a>
-{% if me.role == 'admin' %}
+{% if boleh_hapus(me, s) %}
 <a href="/pengajuan/{{ s.id }}/hapus?kembali=%2F" style="margin-left:14px;
    color:var(--merah);font-size:13.5px;font-weight:600">Hapus pengajuan</a>{% endif %}</p>
 </div>
@@ -134,13 +134,16 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
 
 {% if hasil.jenis == 'sales_team' %}
 <div class="card"><h2>Insentif Sales &mdash; {{ BULAN[hasil.bulan] }} {{ hasil.tahun }}</h2>
-{% set aktif = hasil.baris | selectattr('total') | list %}
+{% set semua_ada = hasil.baris | selectattr('total') | list %}
+{% set aktif = semua_ada | rejectattr('dikecualikan') | list %}
+{% set dibuang = semua_ada | selectattr('dikecualikan') | list %}
 <div style="overflow-x:auto"><table class="rapat">
 <tr><th>Nama Sales</th><th>Status</th><th class="num">Omset Total</th>
 <th class="num">GP Aksesoris</th><th class="num">Ins. Aksesoris</th>
 <th class="num">Unit HP</th><th class="num">Ins. HP</th>
 <th class="num">Unit Laptop</th><th class="num">Ins. Laptop</th>
-<th class="num">Total</th></tr>
+<th class="num">Total</th>
+{% if boleh_ubah_sales %}<th style="width:52px"></th>{% endif %}</tr>
 {% for b in aktif %}
 <tr><td>{{ b.nama }}</td><td class="mut">{{ b.status }}</td>
 <td class="num">{{ '{:,.0f}'.format(b.omset_total) }}</td>
@@ -150,11 +153,29 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
 <td class="num">{{ '{:,.0f}'.format(b.insentif_handphone) }}</td>
 <td class="num">{{ b.n_laptop }} &times; {{ '{:,.0f}'.format(b.tarif_laptop) }}</td>
 <td class="num">{{ '{:,.0f}'.format(b.insentif_laptop) }}</td>
-<td class="num"><b>{{ '{:,.0f}'.format(b.total) }}</b></td></tr>
+<td class="num"><b>{{ '{:,.0f}'.format(b.total) }}</b></td>
+{% if boleh_ubah_sales %}<td class="right">
+  <form method="post" action="/pengajuan/{{ s.id }}/sales" style="margin:0">
+  <input type="hidden" name="nama" value="{{ b.nama }}">
+  <input type="hidden" name="aksi" value="hapus">
+  <button class="tautan-hapus" title="Keluarkan dari pengajuan">Hapus</button>
+  </form></td>{% endif %}</tr>
 {% endfor %}
 <tr><th colspan="9">Subtotal Insentif Sales</th>
-    <th class="num">{{ rupiah(hasil.subtotal_sales) }}</th></tr>
+    <th class="num">{{ rupiah(hasil.subtotal_sales) }}</th>
+    {% if boleh_ubah_sales %}<th></th>{% endif %}</tr>
 </table></div>
+{% if dibuang %}
+<p class="mut" style="margin-top:10px"><b>Dikeluarkan dari pengajuan
+({{ rupiah(hasil.nilai_dikecualikan) }}):</b>
+{% for b in dibuang %}{{ b.nama }} &mdash; {{ rupiah(b.total) }}{% if boleh_ubah_sales %}
+  <form method="post" action="/pengajuan/{{ s.id }}/sales"
+        style="display:inline;margin:0">
+    <input type="hidden" name="nama" value="{{ b.nama }}">
+    <input type="hidden" name="aksi" value="kembalikan">
+    <button class="tautan-hapus" style="color:var(--navy)">kembalikan</button>
+  </form>{% endif %}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+{% endif %}
 <p class="mut" style="margin-top:10px">Tarif per unit mengikuti tingkat achievement omset
 masing-masing sales. Insentif aksesoris = {{ 5 }}% dari gross profit.
 Jumlah faktur yang diproses: {{ '{:,}'.format(hasil.jumlah_faktur_diproses) }}.

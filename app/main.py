@@ -96,6 +96,7 @@ tpl = Jinja2Templates(directory=TEMPLATES_DIR)
 tpl.env.globals.update(STATUS_LABELS=STATUS_LABELS, ROLE_LABELS=ROLE_LABELS,
                        TYPES=TYPES, BULAN=docgen.BULAN, rupiah=docgen.rupiah,
                        STATUS_FLOW=STATUS_FLOW, alur=alur)
+tpl.env.globals["boleh_hapus"] = lambda u, sub: boleh_hapus(u, sub)
 
 
 def db_(): return SessionLocal()
@@ -295,29 +296,92 @@ def home(request: Request, tab: str = "", cabang: int = 0, bulan: int = 0,
                   tahun_ada=sorted({x.period_year for x in semua}, reverse=True),
                   lihat_nominal=boleh_lihat_nominal(u),
                   boleh_unduh=u.role in PELIHAT_SEMUA,
-                  boleh_hapus=u.role == ROLE_ADMIN, pesan=pesan,
+                  pesan=pesan,
                   url_kembali=url_kembali)
 
 
-# ------------------------------------------------- hapus pengajuan (admin)
+# ---------------------------------- keluarkan sales dari pengajuan sales & team
+def _boleh_ubah_sales(u, s):
+    """Pengaju boleh menyunting selama masih draft; admin kapan saja."""
+    return u.role == ROLE_ADMIN or (s.submitter_id == u.id and s.status == ST_DRAFT)
+
+
+def _hitung_ulang_sales(hasil):
+    """Kurangi subtotal dengan baris yang dikecualikan, tanpa menghitung ulang
+    dari berkas Excel — angka dasarnya tetap sama persis."""
+    asli = hasil.get("subtotal_sales_asli")
+    if asli is None:
+        asli = hasil.get("subtotal_sales", 0)
+        hasil["subtotal_sales_asli"] = asli
+    keluar = sum(b.get("total", 0) for b in hasil.get("baris", [])
+                 if b.get("dikecualikan"))
+    hasil["nilai_dikecualikan"] = keluar
+    hasil["subtotal_sales"] = asli - keluar
+    hasil["total"] = hasil["subtotal_sales"] + hasil.get("insentif_team", 0)
+    return hasil
+
+
+@app.post("/pengajuan/{sid}/sales")
+def ubah_baris_sales(request: Request, sid: int, nama: str = Form(...),
+                     aksi: str = Form("hapus")):
+    u = require(request)
+    db = db_()
+    s = db.query(Submission).get(sid)
+    if not s or s.type != "sales_team":
+        raise HTTPException(404, "Pengajuan tidak ditemukan")
+    if not _boleh_ubah_sales(u, s):
+        raise HTTPException(403, "Pengajuan ini sudah tidak bisa disunting")
+
+    hasil = json.loads(s.data_json or "{}")
+    ketemu = False
+    for b in hasil.get("baris", []):
+        if b.get("nama") == nama:
+            b["dikecualikan"] = (aksi == "hapus")
+            ketemu = True
+    if not ketemu:
+        raise HTTPException(404, "Nama sales tidak ada pada pengajuan ini")
+
+    _hitung_ulang_sales(hasil)
+    s.data_json = json.dumps(hasil, default=str)
+    s.total_amount = hasil["total"]
+    db.commit()
+    return RedirectResponse(f"/pengajuan/{sid}", 303)
+
+
+# ------------------------------------------------- hapus pengajuan
+def boleh_hapus(u, sub):
+    """Admin boleh menghapus apa saja; pengguna lain hanya draft miliknya
+    sendiri, karena sesudah diajukan dokumennya sudah beredar ke penyetuju."""
+    if not u or not sub:
+        return False
+    return (u.role == ROLE_ADMIN
+            or (sub.submitter_id == u.id and sub.status == ST_DRAFT))
 @app.get("/pengajuan/{sid}/hapus", response_class=HTMLResponse)
 def hapus_konfirmasi(request: Request, sid: int, kembali: str = "/"):
-    require(request, [ROLE_ADMIN])
+    u = require(request)
     db = db_()
     sub = db.query(Submission).get(sid)
     if not sub:
         raise HTTPException(404, "Pengajuan tidak ditemukan")
+    if not boleh_hapus(u, sub):
+        raise HTTPException(403, "Pengajuan ini tidak bisa Anda hapus. "
+                                 "Draft hanya bisa dihapus oleh pembuatnya "
+                                 "selama belum diajukan.")
     return render(request, "hapus.html", sub=sub, kembali=kembali,
                   lampiran=db.query(Attachment).filter_by(submission_id=sid).count())
 
 
 @app.post("/pengajuan/{sid}/hapus")
 def hapus_pengajuan(request: Request, sid: int, kembali: str = Form("/")):
-    require(request, [ROLE_ADMIN])
+    u = require(request)
     db = db_()
     sub = db.query(Submission).get(sid)
     if not sub:
         raise HTTPException(404, "Pengajuan tidak ditemukan")
+    if not boleh_hapus(u, sub):
+        raise HTTPException(403, "Pengajuan ini tidak bisa Anda hapus. "
+                                 "Draft hanya bisa dihapus oleh pembuatnya "
+                                 "selama belum diajukan.")
     kode = sub.code
     db.query(Attachment).filter_by(submission_id=sid).delete()
     db.query(Approval).filter_by(submission_id=sid).delete()
@@ -926,7 +990,9 @@ def detail(request: Request, sid: int):
         raise HTTPException(403, "Bukan pengajuan Anda")
     hasil = json.loads(s.data_json or "{}")
     can_act = ACTOR_OF_STATUS.get(s.status) == u.role
-    return render(request, "detail.html", s=s, hasil=hasil, can_act=can_act)
+    return render(request, "detail.html", s=s, hasil=hasil, can_act=can_act,
+                  boleh_ubah_sales=(s.type == "sales_team"
+                                    and _boleh_ubah_sales(u, s)))
 
 
 @app.post("/pengajuan/{sid}/submit")

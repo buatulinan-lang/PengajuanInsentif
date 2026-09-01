@@ -378,8 +378,10 @@ def _tabel_sales(doc, hasil):
     t = _tabel(doc, judul, lebar, 8)
     kanan = {2, 3, 4, 5, 6}
     semua = hasil.get("baris", [])
-    # Sales tanpa insentif bulan ini tidak dicetak supaya daftarnya ringkas.
-    aktif = [b for b in semua if b.get("total")]
+    # Sales tanpa insentif bulan ini tidak dicetak supaya daftarnya ringkas,
+    # begitu pula yang sengaja dikeluarkan dari pengajuan.
+    aktif = [b for b in semua
+             if b.get("total") and not b.get("dikecualikan")]
     for b in aktif:
         _baris(t, [b["nama"], b["status"], angka(b["omset_total"]),
                    angka(b["gp_aksesoris"]), b["n_handphone"], b["n_laptop"],
@@ -392,12 +394,16 @@ def _tabel_sales(doc, hasil):
                  angka(hasil.get("insentif_team", 0)), lebar, 8.5, False, KREM_MUDA)
     _baris_lebar(t, "TOTAL INSENTIF YANG DIDAPAT", angka(hasil.get("total", 0)),
                  lebar, 9.5, True, KREM)
-    nihil = len(semua) - len(aktif)
+    nihil = len([b for b in semua
+                 if not b.get("total") and not b.get("dikecualikan")])
+    dibuang = len([b for b in semua if b.get("dikecualikan")])
     _catatan(doc, "Omzet dan gross profit diatribusikan melalui Nama Default "
                   "Penjual pada data pelanggan. Jumlah unit dihitung per faktur "
                   "menurut kategori penjualan."
                   + (f" {nihil} sales tanpa insentif bulan ini tidak ditampilkan."
-                     if nihil else ""))
+                     if nihil else "")
+                  + (f" {dibuang} sales dikeluarkan dari pengajuan ini."
+                     if dibuang else ""))
 
 
 def _tabel_purchasing(doc, hasil):
