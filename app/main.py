@@ -989,17 +989,26 @@ def detail(request: Request, sid: int):
     if u.role == ROLE_SL and s.submitter_id != u.id:
         raise HTTPException(403, "Bukan pengajuan Anda")
     hasil = json.loads(s.data_json or "{}")
-    can_act = ACTOR_OF_STATUS.get(s.status) == u.role
+    giliran = ACTOR_OF_STATUS.get(s.status)
+    can_act = giliran == u.role or (u.role == ROLE_ADMIN and giliran is not None)
     return render(request, "detail.html", s=s, hasil=hasil, can_act=can_act,
+                  giliran=giliran,
                   boleh_ubah_sales=(s.type == "sales_team"
                                     and _boleh_ubah_sales(u, s)))
 
 
 @app.post("/pengajuan/{sid}/submit")
 def do_submit(request: Request, sid: int):
-    u = require(request, [ROLE_SL, ROLE_ADMIN])
+    # Pengaju mana pun boleh mengirim draft miliknya sendiri — termasuk ARM
+    # untuk Insentif Profit ARM. Sebelumnya hanya Store Leader yang boleh,
+    # sehingga pengajuan ARM tidak pernah bisa dikirim.
+    u = require(request)
     db = db_()
     s = db.query(Submission).get(sid)
+    if not s:
+        raise HTTPException(404, "Pengajuan tidak ditemukan")
+    if u.role != ROLE_ADMIN and s.submitter_id != u.id:
+        raise HTTPException(403, "Hanya pembuat pengajuan yang bisa mengirimnya.")
     if s.status != ST_DRAFT:
         raise HTTPException(400, "Pengajuan sudah dikirim")
     s.status = alur(s.type)[0]
@@ -1014,8 +1023,29 @@ def do_action(request: Request, sid: int, aksi: str = Form(...), catatan: str = 
     u = require(request)
     db = db_()
     s = db.query(Submission).get(sid)
-    if ACTOR_OF_STATUS.get(s.status) != u.role:
-        raise HTTPException(403, "Bukan giliran role Anda untuk memproses")
+    if not s:
+        raise HTTPException(404, "Pengajuan tidak ditemukan")
+
+    peran_giliran = ACTOR_OF_STATUS.get(s.status)
+    if peran_giliran != u.role:
+        # Admin boleh mendorong pengajuan yang tersendat, bertindak atas nama
+        # peran yang sedang giliran; riwayat tetap mencatat nama aslinya.
+        if not (u.role == ROLE_ADMIN and peran_giliran):
+            if s.status == ST_DRAFT:
+                pesan = ("Pengajuan ini masih berstatus Draft, jadi belum bisa "
+                         "diproses. Pembuatnya harus menekan Kirim Pengajuan "
+                         "terlebih dahulu.")
+            elif s.status == ST_DONE:
+                pesan = "Pengajuan ini sudah selesai."
+            elif s.status == ST_REJECTED:
+                pesan = "Pengajuan ini sudah ditolak."
+            else:
+                pesan = (f"Saat ini pengajuan menunggu "
+                         f"{ROLE_LABELS.get(peran_giliran, peran_giliran)}, "
+                         f"bukan {ROLE_LABELS.get(u.role, u.role)}. Bila "
+                         f"statusnya baru saja berubah, muat ulang halaman.")
+            raise HTTPException(403, pesan)
+    peran_catat = peran_giliran or u.role
     token = secrets.token_urlsafe(12)
     if aksi == "tolak":
         s.status = ST_REJECTED
@@ -1024,8 +1054,8 @@ def do_action(request: Request, sid: int, aksi: str = Form(...), catatan: str = 
         act = "approve"
         urut = alur(s.type)
         s.status = urut[urut.index(s.status) + 1]
-    db.add(Approval(submission_id=s.id, user_id=u.id, role=u.role, action=act,
-                    note=catatan, qr_token=token))
+    db.add(Approval(submission_id=s.id, user_id=u.id, role=peran_catat,
+                    action=act, note=catatan, qr_token=token))
     db.commit()
     return RedirectResponse(f"/pengajuan/{sid}", 303)
 
