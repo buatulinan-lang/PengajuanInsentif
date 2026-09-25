@@ -241,7 +241,25 @@ def logout(request: Request):
 
 
 # ------------------------------------------------- dashboard
-PELIHAT_SEMUA = (ROLE_ARM, ROLE_CEO, ROLE_FINANCE, ROLE_ADMIN)
+PELIHAT_SEMUA = (ROLE_ARM, ROLE_CEO, ROLE_FINANCE, ROLE_ADMIN, ROLE_STAFF)
+
+
+def batas_pandang(q, u):
+    """Staff Admin hanya boleh melihat pengajuan yang sudah lolos CEO."""
+    if u.role == ROLE_STAFF:
+        return q.filter(Submission.status.in_(LOLOS_CEO))
+    return q
+
+
+def boleh_buka(u, sub):
+    """Apakah pengguna ini boleh membuka/mengunduh satu pengajuan."""
+    if not sub:
+        return False
+    if u.role == ROLE_STAFF:
+        return sudah_lolos_ceo(sub)
+    if u.role == ROLE_SL:
+        return sub.submitter_id == u.id
+    return True
 
 
 def boleh_lihat_nominal(u):
@@ -263,6 +281,7 @@ def home(request: Request, tab: str = "", cabang: int = 0, bulan: int = 0,
     elif u.role == ROLE_ARM:
         # ARM melihat semua cabang, termasuk pengajuannya sendiri
         pass
+    q = batas_pandang(q, u)
 
     if cabang:
         q = q.filter(Submission.branch_id == cabang)
@@ -275,9 +294,14 @@ def home(request: Request, tab: str = "", cabang: int = 0, bulan: int = 0,
 
     semua = q.order_by(Submission.id.desc()).all()
 
-    TAB = [("", "Semua"), (ST_DRAFT, "Draft"), (ST_WAIT_ARM, "Approval ARM"),
-           (ST_WAIT_CEO, "Approval CEO"), (ST_WAIT_FIN, "Pencairan Finance"),
-           (ST_DONE, "Done"), (ST_REJECTED, "Ditolak")]
+    if u.role == ROLE_STAFF:
+        # Tab tahap awal tidak ada gunanya: isinya pasti kosong untuk peran ini.
+        TAB = [("", "Sudah Disetujui CEO"), (ST_WAIT_FIN, "Pencairan Finance"),
+               (ST_DONE, "Done")]
+    else:
+        TAB = [("", "Semua"), (ST_DRAFT, "Draft"), (ST_WAIT_ARM, "Approval ARM"),
+               (ST_WAIT_CEO, "Approval CEO"), (ST_WAIT_FIN, "Pencairan Finance"),
+               (ST_DONE, "Done"), (ST_REJECTED, "Ditolak")]
     jumlah = {kode: len([x for x in semua if not kode or x.status == kode])
               for kode, _ in TAB}
     items = [x for x in semua if not tab or x.status == tab]
@@ -296,6 +320,10 @@ def home(request: Request, tab: str = "", cabang: int = 0, bulan: int = 0,
                   tahun_ada=sorted({x.period_year for x in semua}, reverse=True),
                   lihat_nominal=boleh_lihat_nominal(u),
                   boleh_unduh=u.role in PELIHAT_SEMUA,
+                  # Staff Admin memang dibuat untuk mengunduh, jadi pilihan
+                  # unduh massal tampil di semua tab miliknya, bukan hanya Done.
+                  massal=(u.role in PELIHAT_SEMUA
+                          and (tab == ST_DONE or u.role == ROLE_STAFF)),
                   pesan=pesan,
                   url_kembali=url_kembali)
 
@@ -986,8 +1014,10 @@ def detail(request: Request, sid: int):
     s = db.query(Submission).get(sid)
     if not s:
         raise HTTPException(404, "Pengajuan tidak ditemukan")
-    if u.role == ROLE_SL and s.submitter_id != u.id:
-        raise HTTPException(403, "Bukan pengajuan Anda")
+    if not boleh_buka(u, s):
+        raise HTTPException(403, "Bukan pengajuan Anda" if u.role == ROLE_SL
+                            else "Pengajuan ini belum disetujui CEO, jadi "
+                                 "belum bisa dibuka oleh Staff Admin.")
     hasil = json.loads(s.data_json or "{}")
     giliran = ACTOR_OF_STATUS.get(s.status)
     can_act = giliran == u.role or (u.role == ROLE_ADMIN and giliran is not None)
@@ -1073,8 +1103,10 @@ def download_docx(request: Request, sid: int):
     s = db.query(Submission).get(sid)
     if not s:
         raise HTTPException(404, "Pengajuan tidak ditemukan")
-    if u.role == ROLE_SL and s.submitter_id != u.id:
-        raise HTTPException(403, "Bukan pengajuan Anda")
+    if not boleh_buka(u, s):
+        raise HTTPException(403, "Bukan pengajuan Anda" if u.role == ROLE_SL
+                            else "Pengajuan ini belum disetujui CEO, jadi "
+                                 "belum bisa diunduh oleh Staff Admin.")
 
     hasil = json.loads(s.data_json or "{}")
     out = os.path.join(tempfile.gettempdir(), s.code.replace("/", "_") + ".docx")
@@ -1096,15 +1128,23 @@ def download_docx(request: Request, sid: int):
 @app.post("/pengajuan/unduh-massal")
 def unduh_massal(request: Request, sid: list[int] = Form([])):
     """Kumpulkan dokumen Word beberapa pengajuan menjadi satu berkas .zip."""
-    u = require(request, [ROLE_ARM, ROLE_CEO, ROLE_FINANCE, ROLE_ADMIN])
+    u = require(request, list(PELIHAT_SEMUA))
     db = db_()
     if not sid:
         raise HTTPException(400, "Tidak ada pengajuan yang dipilih")
 
-    daftar = (db.query(Submission).filter(Submission.id.in_(sid))
-                .order_by(Submission.branch_id, Submission.id).all())
+    daftar = (batas_pandang(db.query(Submission), u)
+              .filter(Submission.id.in_(sid))
+              .order_by(Submission.branch_id, Submission.id).all())
     if not daftar:
-        raise HTTPException(404, "Pengajuan tidak ditemukan")
+        raise HTTPException(
+            403 if u.role == ROLE_STAFF else 404,
+            "Pengajuan yang dipilih belum disetujui CEO, jadi belum bisa "
+            "diunduh." if u.role == ROLE_STAFF else "Pengajuan tidak ditemukan")
+    if u.role == ROLE_STAFF and len(daftar) < len(set(sid)):
+        # Sebagian pilihan disaring; beri tahu, jangan diam-diam berkurang.
+        print(f"unduh massal: {len(set(sid)) - len(daftar)} pengajuan "
+              f"dilewati karena belum disetujui CEO", flush=True)
 
     import zipfile
     zip_path = os.path.join(tempfile.gettempdir(),
@@ -1142,10 +1182,12 @@ def verify(request: Request, token: str):
 
 @app.get("/lampiran/{aid}")
 def lampiran(request: Request, aid: int):
-    require(request)
+    u = require(request)
     db = db_()
     at = db.query(Attachment).get(aid)
     if not at:
         raise HTTPException(404, "Lampiran tidak ditemukan")
+    if not boleh_buka(u, db.query(Submission).get(at.submission_id)):
+        raise HTTPException(403, "Lampiran ini bukan hak akses Anda")
     return StreamingResponse(io.BytesIO(at.blob), media_type=at.mime or "application/octet-stream",
         headers={"Content-Disposition": f'inline; filename="{at.filename}"'})

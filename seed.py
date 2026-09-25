@@ -98,6 +98,8 @@ AKUN = [
     ("ceo",     "Zaskanul Tibalky", "CEO MFlash",            ROLE_CEO,     None),
     ("finance", "Galih Permana",    "Chief Finance Officer", ROLE_FINANCE, None),
     ("admin",   "Administrator",    "IT",                    ROLE_ADMIN,   None),
+    # Hanya untuk mengunduh berkas yang sudah disetujui CEO. Tanpa hak ubah.
+    ("staff.admin", "Staff Admin",  "Staff Admin",           ROLE_STAFF,   None),
 ]
 
 
@@ -135,16 +137,24 @@ def jalankan():
         print(f"RESET_AKUN aktif: password {diubah} akun bawaan disetel ulang. "
               f"Hapus RESET_AKUN dari Environment Variables setelah berhasil masuk.")
 
-    if not db.query(User).count():
-        for un, fn, pos, role, cabang in AKUN:
-            bid = None
-            if cabang:
-                b = db.query(Branch).filter_by(name=cabang).first()
-                bid = b.id if b else None
-            db.add(User(username=un, password_hash=hash_pw(PW), full_name=fn,
-                        position=pos, role=role, branch_id=bid))
+    # Akun bawaan ditambahkan satu per satu bila belum ada. Dulu blok ini
+    # hanya jalan saat database masih kosong, sehingga akun baru tidak pernah
+    # muncul di server yang sudah terisi.
+    dasar_baru = []
+    for un, fn, pos, role, cabang in AKUN:
+        if db.query(User).filter_by(username=un).first():
+            continue
+        bid = None
+        if cabang:
+            b = db.query(Branch).filter_by(name=cabang).first()
+            bid = b.id if b else None
+        db.add(User(username=un, password_hash=hash_pw(PW), full_name=fn,
+                    position=pos, role=role, branch_id=bid))
+        dasar_baru.append(un)
+    if dasar_baru:
         db.commit()
-        print(f"akun awal dibuat ({len(AKUN)})")
+        print(f"akun bawaan dibuat: {', '.join(dasar_baru)} "
+              f"(password awal {PW})")
     # Store Leader per cabang — hanya ditambahkan bila belum ada
     sl_baru, sl_lewat = 0, []
     for cabang, nama in STORE_LEADER:

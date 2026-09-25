@@ -34,9 +34,13 @@ ROLE_ARM     = "arm"          # Area / Regional Manager
 ROLE_CEO     = "ceo"
 ROLE_FINANCE = "finance"
 ROLE_ADMIN   = "admin"
+# Staff Admin hanya mengunduh berkas yang sudah lolos approval CEO.
+# Tidak bisa membuat, menyetujui, menyunting, maupun menghapus apa pun.
+ROLE_STAFF   = "staff_admin"
 ROLE_LABELS = {
     ROLE_SL: "Store Leader", ROLE_ARM: "Area Regional Manager",
     ROLE_CEO: "CEO", ROLE_FINANCE: "Finance", ROLE_ADMIN: "Administrator",
+    ROLE_STAFF: "Staff Admin (unduh saja)",
 }
 
 # ---- Workflow ----------------------------------------------------------
@@ -60,6 +64,13 @@ STATUS_LABELS = {
 }
 # role yang berwenang bertindak pada tiap status
 ACTOR_OF_STATUS = {ST_WAIT_ARM: ROLE_ARM, ST_WAIT_CEO: ROLE_CEO, ST_WAIT_FIN: ROLE_FINANCE}
+
+# Status yang berarti CEO sudah menyetujui. Inilah batas pandang Staff Admin.
+LOLOS_CEO = (ST_WAIT_FIN, ST_DONE)
+
+
+def sudah_lolos_ceo(sub):
+    return bool(sub) and sub.status in LOLOS_CEO
 
 # ---- Jenis pengajuan ---------------------------------------------------
 TYPES = {
