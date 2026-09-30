@@ -203,6 +203,8 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
     gp = defaultdict(lambda: defaultdict(float))
     unit = defaultdict(lambda: defaultdict(set))
     bagi_hasil_member = 0.0
+    # Omset jasa Member Reguler per sales — dasar pembagian porsi Insentif Team.
+    jasa_member = defaultdict(float)
     dipakai = 0
     tak_dikenal = defaultdict(float)
 
@@ -217,7 +219,10 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
         beli = _num(_amb(f, "Harga Beli"))
         no = str(_amb(f, "No Faktur") or "")
 
-        if kat == "JASA" and _k(_amb(f, "Kategori Pelanggan")) == _k("MEMBER REGULER"):
+        jasa_member_reguler = (kat == "JASA"
+                               and _k(_amb(f, "Kategori Pelanggan"))
+                               == _k("MEMBER REGULER"))
+        if jasa_member_reguler:
             bagi_hasil_member += total * (1 - pct_bagi_hasil_teknisi / 100)
 
         # --- omset & gross profit: lewat Nama Default Penjual pelanggan
@@ -229,6 +234,8 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
             tak_dikenal[asli] += total
         if sales:
             omset[sales][kat] += total
+            if jasa_member_reguler:
+                jasa_member[sales] += total
             if kat in ("AKSESORIS", "HANDPHONE", "LAPTOP") and beli:
                 gp[sales][kat] += total - beli
 
@@ -267,6 +274,7 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
             "sparepart": o.get("SPAREPART", 0), "aksesoris": o.get("AKSESORIS", 0),
             "handphone": o.get("HANDPHONE", 0), "laptop": o.get("LAPTOP", 0),
             "other": o.get("OTHER", 0), "omset_total": omset_total,
+            "jasa_member": round(jasa_member.get(nama, 0.0)),
             "gp_aksesoris": round(gp[nama]["AKSESORIS"]),
             "n_service": len(unit[nama]["service"]),
             "n_aksesoris": len(unit[nama]["aksesoris"]),
@@ -278,6 +286,30 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
         })
 
     insentif_team = round(bagi_hasil_member * rules["pct_insentif_team"] / 100)
+
+    # Pool Insentif Team dibagi ke sales dan Store Leader. Porsi sales dipecah
+    # pro-rata menurut omset jasa service Member Reguler masing-masing, yaitu
+    # populasi yang sama dengan yang membentuk pool itu sendiri.
+    pct_sales = rules.get("porsi_team_sales_pct", 80)
+    pct_sl = rules.get("porsi_team_sl_pct", 100 - pct_sales)
+    jumlah_porsi = (pct_sales + pct_sl) or 100
+    jatah_sales = round(insentif_team * pct_sales / jumlah_porsi)
+    jatah_sl = insentif_team - jatah_sales          # sisanya, supaya genap
+
+    total_jasa_member = sum(jasa_member.values())
+    for b in baris:
+        andil = (b["jasa_member"] / total_jasa_member) if total_jasa_member else 0.0
+        b["andil_team_pct"] = round(andil * 100, 2)
+        b["insentif_team"] = round(jatah_sales * andil)
+    # Pembulatan per orang bisa menyisakan selisih beberapa rupiah; bebankan
+    # ke penerima terbesar supaya jumlahnya persis sama dengan jatah.
+    terbagi = sum(b["insentif_team"] for b in baris)
+    if baris and terbagi != jatah_sales:
+        besar = max(baris, key=lambda b: b["insentif_team"])
+        besar["insentif_team"] += jatah_sales - terbagi
+    for b in baris:
+        b["total_diterima"] = b["total"] + b["insentif_team"]
+
     return {
         "jenis": "sales_team", "bulan": bulan, "tahun": tahun, "baris": baris,
         "subtotal_sales": round(total_insentif),
@@ -285,6 +317,9 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
         "pct_bagi_hasil_teknisi": pct_bagi_hasil_teknisi,
         "pct_insentif_team": rules["pct_insentif_team"],
         "insentif_team": insentif_team,
+        "pct_team_sales": pct_sales, "pct_team_sl": pct_sl,
+        "team_sales": jatah_sales, "team_store_leader": jatah_sl,
+        "omset_jasa_member_total": round(total_jasa_member),
         "total": round(total_insentif) + insentif_team,
         "jumlah_faktur_diproses": dipakai,
         "nama_tak_dikenal": sorted(tak_dikenal),

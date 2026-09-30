@@ -341,11 +341,23 @@ def _hitung_ulang_sales(hasil):
     if asli is None:
         asli = hasil.get("subtotal_sales", 0)
         hasil["subtotal_sales_asli"] = asli
-    keluar = sum(b.get("total", 0) for b in hasil.get("baris", [])
-                 if b.get("dikecualikan"))
-    hasil["nilai_dikecualikan"] = keluar
+    team_asli = hasil.get("team_sales_asli")
+    if team_asli is None:
+        team_asli = hasil.get("team_sales", 0)
+        hasil["team_sales_asli"] = team_asli
+
+    dibuang = [b for b in hasil.get("baris", []) if b.get("dikecualikan")]
+    keluar = sum(b.get("total", 0) for b in dibuang)
+    # Porsi Insentif Team milik orang yang dikeluarkan ikut dicabut, dan tidak
+    # dibagikan ulang — nilainya sekadar tidak jadi dibayarkan.
+    keluar_team = sum(b.get("insentif_team", 0) for b in dibuang)
+
+    hasil["nilai_dikecualikan"] = keluar + keluar_team
     hasil["subtotal_sales"] = asli - keluar
-    hasil["total"] = hasil["subtotal_sales"] + hasil.get("insentif_team", 0)
+    hasil["team_sales"] = team_asli - keluar_team
+    hasil["insentif_team"] = (hasil["team_sales"]
+                              + hasil.get("team_store_leader", 0))
+    hasil["total"] = hasil["subtotal_sales"] + hasil["insentif_team"]
     return hasil
 
 

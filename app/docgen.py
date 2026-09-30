@@ -371,35 +371,55 @@ def _tabel_profit(doc, hasil):
     _tabel_goal(doc, hasil)
 
 
-def _tabel_sales(doc, hasil):
-    judul = ["Nama Sales", "Status", "Omzet", "GP Aksesoris",
-             "Unit HP", "Unit Laptop", "Insentif"]
-    lebar = [4.8, 1.8, 2.5, 2.3, 1.5, 1.6, 2.1]
+def _tabel_sales(doc, hasil, sub=None):
+    judul = ["Nama Sales", "Status", "Omzet", "Unit HP", "Unit Laptop",
+             "Ins. Sales", "Ins. Team", "Total"]
+    lebar = [4.2, 1.6, 2.3, 1.3, 1.4, 2.0, 1.9, 1.9]
     t = _tabel(doc, judul, lebar, 8)
-    kanan = {2, 3, 4, 5, 6}
+    kanan = {2, 3, 4, 5, 6, 7}
     semua = hasil.get("baris", [])
+
+    def terima(b):
+        return b.get("total_diterima", b.get("total", 0))
+
     # Sales tanpa insentif bulan ini tidak dicetak supaya daftarnya ringkas,
     # begitu pula yang sengaja dikeluarkan dari pengajuan.
-    aktif = [b for b in semua
-             if b.get("total") and not b.get("dikecualikan")]
+    aktif = [b for b in semua if terima(b) and not b.get("dikecualikan")]
     for b in aktif:
         _baris(t, [b["nama"], b["status"], angka(b["omset_total"]),
-                   angka(b["gp_aksesoris"]), b["n_handphone"], b["n_laptop"],
-                   angka(b["total"])], lebar, 8, kanan=kanan)
-    _baris_lebar(t, "Subtotal Insentif Sales", angka(hasil.get("subtotal_sales", 0)),
+                   b["n_handphone"], b["n_laptop"], angka(b["total"]),
+                   angka(b.get("insentif_team", 0)), angka(terima(b))],
+               lebar, 8, kanan=kanan)
+
+    _baris_lebar(t, "Subtotal Insentif Sales",
+                 angka(hasil.get("subtotal_sales", 0)),
                  lebar, 8.5, True, KREM_MUDA)
+    pool = hasil.get("insentif_team", 0)
+    pct_sales = hasil.get("pct_team_sales", 80)
+    pct_sl = hasil.get("pct_team_sl", 20)
     _baris_lebar(t, f"Insentif Team {hasil.get('pct_insentif_team', 2)}% dari bagi "
                     f"hasil service MFlash pelanggan Member Reguler "
                     f"({angka(hasil.get('omset_service_member', 0))})",
-                 angka(hasil.get("insentif_team", 0)), lebar, 8.5, False, KREM_MUDA)
+                 angka(pool), lebar, 8.5, False, KREM_MUDA)
+    _baris_lebar(t, f"     porsi Sales {pct_sales}% — sudah masuk kolom "
+                    f"Ins. Team di atas",
+                 angka(hasil.get("team_sales", 0)), lebar, 8, False, KREM_MUDA)
+    nama_sl = getattr(sub, "submitter_name", None) or (
+        sub.submitter.full_name if sub is not None and sub.submitter else "")
+    _baris_lebar(t, f"     porsi Store Leader {pct_sl}%"
+                    + (f" — {nama_sl}" if nama_sl else ""),
+                 angka(hasil.get("team_store_leader", 0)), lebar, 8, False,
+                 KREM_MUDA)
     _baris_lebar(t, "TOTAL INSENTIF YANG DIDAPAT", angka(hasil.get("total", 0)),
                  lebar, 9.5, True, KREM)
     nihil = len([b for b in semua
-                 if not b.get("total") and not b.get("dikecualikan")])
+                 if not terima(b) and not b.get("dikecualikan")])
     dibuang = len([b for b in semua if b.get("dikecualikan")])
-    _catatan(doc, "Omzet dan gross profit diatribusikan melalui Nama Default "
-                  "Penjual pada data pelanggan. Jumlah unit dihitung per faktur "
-                  "menurut kategori penjualan."
+    _catatan(doc, "Omzet diatribusikan melalui Nama Default Penjual pada data "
+                  "pelanggan. Jumlah unit dihitung per faktur menurut kategori "
+                  "penjualan. Porsi Insentif Team tiap sales dibagi pro-rata "
+                  "menurut omset jasa service pelanggan Member Reguler "
+                  "masing-masing."
                   + (f" {nihil} sales tanpa insentif bulan ini tidak ditampilkan."
                      if nihil else "")
                   + (f" {dibuang} sales dikeluarkan dari pengajuan ini."
@@ -552,7 +572,7 @@ def buat_dokumen(sub, hasil, approvals, base_url, out_path):
                                    "ulang pengajuan setelah data pendukungnya "
                                    "dilengkapi.", 10, spasi_setelah=10, warna=ABU)
     elif sub.type == "sales_team":
-        _tabel_sales(doc, hasil)
+        _tabel_sales(doc, hasil, sub)
     elif sub.type == "purchasing":
         _tabel_purchasing(doc, hasil)
     elif sub.type == "profit_arm":

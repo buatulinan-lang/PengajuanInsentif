@@ -134,7 +134,9 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
 
 {% if hasil.jenis == 'sales_team' %}
 <div class="card"><h2>Insentif Sales &mdash; {{ BULAN[hasil.bulan] }} {{ hasil.tahun }}</h2>
-{% set semua_ada = hasil.baris | selectattr('total') | list %}
+{% set semua_ada = hasil.baris | selectattr('total_diterima', 'defined')
+                   | selectattr('total_diterima') | list
+                   or hasil.baris | selectattr('total') | list %}
 {% set aktif = semua_ada | rejectattr('dikecualikan') | list %}
 {% set dibuang = semua_ada | selectattr('dikecualikan') | list %}
 <div style="overflow-x:auto"><table class="rapat">
@@ -142,6 +144,8 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
 <th class="num">GP Aksesoris</th><th class="num">Ins. Aksesoris</th>
 <th class="num">Unit HP</th><th class="num">Ins. HP</th>
 <th class="num">Unit Laptop</th><th class="num">Ins. Laptop</th>
+<th class="num">Ins. Sales</th>
+<th class="num">Omset Jasa<br>Member</th><th class="num">Ins. Team</th>
 <th class="num">Total</th>
 {% if boleh_ubah_sales %}<th style="width:52px"></th>{% endif %}</tr>
 {% for b in aktif %}
@@ -153,7 +157,11 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
 <td class="num">{{ '{:,.0f}'.format(b.insentif_handphone) }}</td>
 <td class="num">{{ b.n_laptop }} &times; {{ '{:,.0f}'.format(b.tarif_laptop) }}</td>
 <td class="num">{{ '{:,.0f}'.format(b.insentif_laptop) }}</td>
-<td class="num"><b>{{ '{:,.0f}'.format(b.total) }}</b></td>
+<td class="num">{{ '{:,.0f}'.format(b.total) }}</td>
+<td class="num">{{ '{:,.0f}'.format(b.jasa_member or 0) }}
+  <span class="mut">({{ b.andil_team_pct or 0 }}%)</span></td>
+<td class="num">{{ '{:,.0f}'.format(b.insentif_team or 0) }}</td>
+<td class="num"><b>{{ '{:,.0f}'.format(b.total_diterima or b.total) }}</b></td>
 {% if boleh_ubah_sales %}<td class="right">
   <form method="post" action="/pengajuan/{{ s.id }}/sales" style="margin:0">
   <input type="hidden" name="nama" value="{{ b.nama }}">
@@ -161,8 +169,11 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
   <button class="tautan-hapus" title="Keluarkan dari pengajuan">Hapus</button>
   </form></td>{% endif %}</tr>
 {% endfor %}
-<tr><th colspan="9">Subtotal Insentif Sales</th>
+<tr><th colspan="9">Subtotal</th>
     <th class="num">{{ rupiah(hasil.subtotal_sales) }}</th>
+    <th class="num">{{ '{:,.0f}'.format(hasil.omset_jasa_member_total or 0) }}</th>
+    <th class="num">{{ rupiah(hasil.team_sales or 0) }}</th>
+    <th class="num">{{ rupiah(hasil.subtotal_sales + (hasil.team_sales or 0)) }}</th>
     {% if boleh_ubah_sales %}<th></th>{% endif %}</tr>
 </table></div>
 {% if dibuang %}
@@ -188,8 +199,16 @@ Jumlah faktur yang diproses: {{ '{:,}'.format(hasil.jumlah_faktur_diproses) }}.
 <tr><td>Bagi hasil service MFlash &mdash; pelanggan Member Reguler
     (bagi hasil teknisi {{ hasil.pct_bagi_hasil_teknisi }}%)</td>
     <td class="num">{{ rupiah(hasil.omset_service_member) }}</td></tr>
-<tr><th>Insentif Team {{ hasil.pct_insentif_team }}%</th>
-    <th class="num">{{ rupiah(hasil.insentif_team) }}</th></tr>
+<tr><td>Pool Insentif Team {{ hasil.pct_insentif_team }}%</td>
+    <td class="num">{{ rupiah(hasil.insentif_team) }}</td></tr>
+<tr><td>&rarr; Porsi Sales {{ hasil.pct_team_sales or 80 }}%
+    <span class="mut">&mdash; dibagi pro-rata menurut omset jasa service
+    Member Reguler, lihat kolom Ins. Team di tabel atas</span></td>
+    <td class="num">{{ rupiah(hasil.team_sales or 0) }}</td></tr>
+<tr><th>&rarr; Porsi Store Leader {{ hasil.pct_team_sl or 20 }}%
+    <span class="mut" style="font-weight:400">&mdash;
+    {{ s.submitter_name or (s.submitter.full_name if s.submitter) }}</span></th>
+    <th class="num">{{ rupiah(hasil.team_store_leader or 0) }}</th></tr>
 </table></div>
 
 <div class="card"><table><tr><th>TOTAL PENGAJUAN</th>

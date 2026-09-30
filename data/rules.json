@@ -244,7 +244,10 @@
         "laptop": 40000,
         "handphone": 12000
       }
-    ]
+    ],
+    "porsi_team_sales_pct": 80,
+    "porsi_team_sl_pct": 20,
+    "catatan_porsi_team": "Pool Insentif Team dibagi: sekian persen untuk sales (pro-rata menurut omset jasa service Member Reguler masing-masing) dan sisanya untuk Store Leader cabang."
   },
   "purchasing": {
     "goal_performate_pct": 55,
