@@ -160,6 +160,31 @@ def _baris_lebar(t, label, nilai, lebar, ukuran=8.5, tebal=False, arsir=None):
     return r
 
 
+def _baris_kaki(t, label, nilai_kanan, lebar, ukuran=8.5, tebal=False,
+                arsir=None):
+    """Baris ringkasan dengan label melebar dan beberapa kolom nilai di kanan.
+
+    Dipakai agar angka subtotal berdiri tepat di bawah kolom yang dijumlahkan;
+    kalau semua nilai ditaruh di kolom terakhir, pembaca akan mengira kolom
+    Total berjumlah salah.
+    """
+    n = len(nilai_kanan)
+    r = t.add_row()
+    for i, w in enumerate(lebar):
+        r.cells[i].width = Cm(w)
+    kiri = r.cells[0].merge(r.cells[len(lebar) - n - 1])
+    kiri.width = Cm(sum(lebar[:len(lebar) - n]))
+    if arsir:
+        _arsir(kiri, arsir)
+        for i in range(len(lebar) - n, len(lebar)):
+            _arsir(r.cells[i], arsir)
+    _teks(kiri, label, ukuran, tebal)
+    for i, nilai in enumerate(nilai_kanan):
+        _teks(r.cells[len(lebar) - n + i], nilai, ukuran, tebal,
+              WD_ALIGN_PARAGRAPH.RIGHT)
+    return r
+
+
 def _baris(t, nilai, lebar, ukuran=8.5, tebal=False, arsir=None, kanan=()):
     r = t.add_row()
     for i, (v, w) in enumerate(zip(nilai, lebar)):
@@ -391,35 +416,36 @@ def _tabel_sales(doc, hasil, sub=None):
                    angka(b.get("insentif_team", 0)), angka(terima(b))],
                lebar, 8, kanan=kanan)
 
-    _baris_lebar(t, "Subtotal Insentif Sales",
-                 angka(hasil.get("subtotal_sales", 0)),
-                 lebar, 8.5, True, KREM_MUDA)
-    pool = hasil.get("insentif_team", 0)
+    # Kaki tabel: tiap angka berdiri di bawah kolom yang dijumlahkannya.
+    sub_sales = hasil.get("subtotal_sales", 0)
+    sub_team = hasil.get("team_sales", 0)
     pct_sales = hasil.get("pct_team_sales", 80)
     pct_sl = hasil.get("pct_team_sl", 20)
-    _baris_lebar(t, f"Insentif Team {hasil.get('pct_insentif_team', 2)}% dari bagi "
-                    f"hasil service MFlash pelanggan Member Reguler "
-                    f"({angka(hasil.get('omset_service_member', 0))})",
-                 angka(pool), lebar, 8.5, False, KREM_MUDA)
-    _baris_lebar(t, f"     porsi Sales {pct_sales}% — sudah masuk kolom "
-                    f"Ins. Team di atas",
-                 angka(hasil.get("team_sales", 0)), lebar, 8, False, KREM_MUDA)
+    sl = hasil.get("team_store_leader", 0)
+    _baris_kaki(t, "Subtotal seluruh sales",
+                [angka(sub_sales), angka(sub_team), angka(sub_sales + sub_team)],
+                lebar, 8.5, True, KREM_MUDA)
     nama_sl = getattr(sub, "submitter_name", None) or (
         sub.submitter.full_name if sub is not None and sub.submitter else "")
-    _baris_lebar(t, f"     porsi Store Leader {pct_sl}%"
+    _baris_lebar(t, f"Porsi Store Leader {pct_sl}% dari Insentif Team"
                     + (f" — {nama_sl}" if nama_sl else ""),
-                 angka(hasil.get("team_store_leader", 0)), lebar, 8, False,
-                 KREM_MUDA)
+                 angka(sl), lebar, 8.5, False, KREM_MUDA)
     _baris_lebar(t, "TOTAL INSENTIF YANG DIDAPAT", angka(hasil.get("total", 0)),
                  lebar, 9.5, True, KREM)
     nihil = len([b for b in semua
                  if not terima(b) and not b.get("dikecualikan")])
     dibuang = len([b for b in semua if b.get("dikecualikan")])
-    _catatan(doc, "Omzet diatribusikan melalui Nama Default Penjual pada data "
-                  "pelanggan. Jumlah unit dihitung per faktur menurut kategori "
-                  "penjualan. Porsi Insentif Team tiap sales dibagi pro-rata "
-                  "menurut omset jasa service pelanggan Member Reguler "
-                  "masing-masing."
+    _catatan(doc,
+             f"Insentif Team = {hasil.get('pct_insentif_team', 2)}% x bagi hasil "
+             f"service MFlash pelanggan Member Reguler "
+             f"({angka(hasil.get('omset_service_member', 0))}) = "
+             f"{angka(hasil.get('insentif_team', 0))}, dibagi "
+             f"{pct_sales}% untuk sales ({angka(sub_team)}, pro-rata menurut "
+             f"omset jasa service Member Reguler masing-masing dan sudah masuk "
+             f"kolom Ins. Team) dan {pct_sl}% untuk Store Leader "
+             f"({angka(sl)}). Omzet diatribusikan melalui Nama Default Penjual "
+             f"pada data pelanggan; jumlah unit dihitung per faktur menurut "
+             f"kategori penjualan."
                   + (f" {nihil} sales tanpa insentif bulan ini tidak ditampilkan."
                      if nihil else "")
                   + (f" {dibuang} sales dikeluarkan dari pengajuan ini."

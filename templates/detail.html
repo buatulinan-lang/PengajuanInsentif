@@ -169,7 +169,7 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
   <button class="tautan-hapus" title="Keluarkan dari pengajuan">Hapus</button>
   </form></td>{% endif %}</tr>
 {% endfor %}
-<tr><th colspan="9">Subtotal</th>
+<tr><th colspan="9">Subtotal seluruh sales</th>
     <th class="num">{{ rupiah(hasil.subtotal_sales) }}</th>
     <th class="num">{{ '{:,.0f}'.format(hasil.omset_jasa_member_total or 0) }}</th>
     <th class="num">{{ rupiah(hasil.team_sales or 0) }}</th>
@@ -179,7 +179,7 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
 {% if dibuang %}
 <p class="mut" style="margin-top:10px"><b>Dikeluarkan dari pengajuan
 ({{ rupiah(hasil.nilai_dikecualikan) }}):</b>
-{% for b in dibuang %}{{ b.nama }} &mdash; {{ rupiah(b.total) }}{% if boleh_ubah_sales %}
+{% for b in dibuang %}{{ b.nama }} &mdash; {{ rupiah(b.total_diterima or b.total) }}{% if boleh_ubah_sales %}
   <form method="post" action="/pengajuan/{{ s.id }}/sales"
         style="display:inline;margin:0">
     <input type="hidden" name="nama" value="{{ b.nama }}">
@@ -199,16 +199,27 @@ Jumlah faktur yang diproses: {{ '{:,}'.format(hasil.jumlah_faktur_diproses) }}.
 <tr><td>Bagi hasil service MFlash &mdash; pelanggan Member Reguler
     (bagi hasil teknisi {{ hasil.pct_bagi_hasil_teknisi }}%)</td>
     <td class="num">{{ rupiah(hasil.omset_service_member) }}</td></tr>
-<tr><td>Pool Insentif Team {{ hasil.pct_insentif_team }}%</td>
-    <td class="num">{{ rupiah(hasil.insentif_team) }}</td></tr>
-<tr><td>&rarr; Porsi Sales {{ hasil.pct_team_sales or 80 }}%
-    <span class="mut">&mdash; dibagi pro-rata menurut omset jasa service
-    Member Reguler, lihat kolom Ins. Team di tabel atas</span></td>
-    <td class="num">{{ rupiah(hasil.team_sales or 0) }}</td></tr>
-<tr><th>&rarr; Porsi Store Leader {{ hasil.pct_team_sl or 20 }}%
-    <span class="mut" style="font-weight:400">&mdash;
-    {{ s.submitter_name or (s.submitter.full_name if s.submitter) }}</span></th>
-    <th class="num">{{ rupiah(hasil.team_store_leader or 0) }}</th></tr>
+<tr><th>Pool Insentif Team {{ hasil.pct_insentif_team }}%</th>
+    <th class="num">{{ rupiah(hasil.insentif_team) }}</th></tr>
+<tr><td style="padding-left:24px">&rarr; Porsi Sales
+    {{ hasil.pct_team_sales or 80 }}%
+    <span class="mut">&mdash; sudah masuk kolom Ins. Team di tabel atas,
+    tidak ditambahkan lagi di sini</span></td>
+    <td class="num mut">{{ rupiah(hasil.team_sales or 0) }}</td></tr>
+<tr><td style="padding-left:24px">&rarr; Porsi Store Leader
+    {{ hasil.pct_team_sl or 20 }}%
+    <span class="mut">&mdash;
+    {{ s.submitter_name or (s.submitter.full_name if s.submitter) }}</span></td>
+    <td class="num">{{ rupiah(hasil.team_store_leader or 0) }}</td></tr>
+</table></div>
+
+<div class="card"><h2>Rekap</h2>
+<table>
+<tr><td>Total diterima seluruh sales
+    <span class="mut">(insentif sales + porsi team)</span></td>
+    <td class="num">{{ rupiah(hasil.subtotal_sales + (hasil.team_sales or 0)) }}</td></tr>
+<tr><td>Porsi Store Leader</td>
+    <td class="num">{{ rupiah(hasil.team_store_leader or 0) }}</td></tr>
 </table></div>
 
 <div class="card"><table><tr><th>TOTAL PENGAJUAN</th>
