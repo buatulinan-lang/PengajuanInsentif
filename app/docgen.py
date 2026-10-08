@@ -398,10 +398,10 @@ def _tabel_profit(doc, hasil):
 
 def _tabel_sales(doc, hasil, sub=None):
     judul = ["Nama Sales", "Status", "Omzet", "Unit HP", "Unit Laptop",
-             "Ins. Sales", "Ins. Team", "Total"]
-    lebar = [4.2, 1.6, 2.3, 1.3, 1.4, 2.0, 1.9, 1.9]
+             "Pcs Parfum", "Ins. Sales", "Ins. Team", "Total"]
+    lebar = [3.9, 1.5, 2.2, 1.2, 1.3, 1.3, 1.8, 1.7, 1.7]
     t = _tabel(doc, judul, lebar, 8)
-    kanan = {2, 3, 4, 5, 6, 7}
+    kanan = {2, 3, 4, 5, 6, 7, 8}
     semua = hasil.get("baris", [])
 
     def terima(b):
@@ -412,8 +412,9 @@ def _tabel_sales(doc, hasil, sub=None):
     aktif = [b for b in semua if terima(b) and not b.get("dikecualikan")]
     for b in aktif:
         _baris(t, [b["nama"], b["status"], angka(b["omset_total"]),
-                   b["n_handphone"], b["n_laptop"], angka(b["total"]),
-                   angka(b.get("insentif_team", 0)), angka(terima(b))],
+                   b["n_handphone"], b["n_laptop"], b.get("n_parfum", 0),
+                   angka(b["total"]), angka(b.get("insentif_team", 0)),
+                   angka(terima(b))],
                lebar, 8, kanan=kanan)
 
     # Kaki tabel: tiap angka berdiri di bawah kolom yang dijumlahkannya.
@@ -443,9 +444,11 @@ def _tabel_sales(doc, hasil, sub=None):
              f"{pct_sales}% untuk sales ({angka(sub_team)}, pro-rata menurut "
              f"omset jasa service Member Reguler masing-masing dan sudah masuk "
              f"kolom Ins. Team) dan {pct_sl}% untuk Store Leader "
-             f"({angka(sl)}). Omzet diatribusikan melalui Nama Default Penjual "
-             f"pada data pelanggan; jumlah unit dihitung per faktur menurut "
-             f"kategori penjualan."
+             f"({angka(sl)}). Insentif parfum "
+             f"{angka(hasil.get('tarif_parfum', 0))} per pcs. Omzet "
+             f"diatribusikan melalui Nama Default Penjual pada data pelanggan; "
+             f"jumlah unit dan pcs parfum menurut kolom Yang Menyerahkan/"
+             f"Menjual pada faktur."
                   + (f" {nihil} sales tanpa insentif bulan ini tidak ditampilkan."
                      if nihil else "")
                   + (f" {dibuang} sales dikeluarkan dari pengajuan ini."

@@ -144,6 +144,7 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
 <th class="num">GP Aksesoris</th><th class="num">Ins. Aksesoris</th>
 <th class="num">Unit HP</th><th class="num">Ins. HP</th>
 <th class="num">Unit Laptop</th><th class="num">Ins. Laptop</th>
+<th class="num">Pcs Parfum</th><th class="num">Ins. Parfum</th>
 <th class="num">Ins. Sales</th>
 <th class="num">Omset Jasa<br>Member</th><th class="num">Ins. Team</th>
 <th class="num">Total</th>
@@ -157,6 +158,9 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
 <td class="num">{{ '{:,.0f}'.format(b.insentif_handphone) }}</td>
 <td class="num">{{ b.n_laptop }} &times; {{ '{:,.0f}'.format(b.tarif_laptop) }}</td>
 <td class="num">{{ '{:,.0f}'.format(b.insentif_laptop) }}</td>
+<td class="num">{{ b.n_parfum or 0 }} &times;
+  {{ '{:,.0f}'.format(b.tarif_parfum or 0) }}</td>
+<td class="num">{{ '{:,.0f}'.format(b.insentif_parfum or 0) }}</td>
 <td class="num">{{ '{:,.0f}'.format(b.total) }}</td>
 <td class="num">{{ '{:,.0f}'.format(b.jasa_member or 0) }}
   <span class="mut">({{ b.andil_team_pct or 0 }}%)</span></td>
@@ -169,7 +173,7 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
   <button class="tautan-hapus" title="Keluarkan dari pengajuan">Hapus</button>
   </form></td>{% endif %}</tr>
 {% endfor %}
-<tr><th colspan="9">Subtotal seluruh sales</th>
+<tr><th colspan="11">Subtotal seluruh sales</th>
     <th class="num">{{ rupiah(hasil.subtotal_sales) }}</th>
     <th class="num">{{ '{:,.0f}'.format(hasil.omset_jasa_member_total or 0) }}</th>
     <th class="num">{{ rupiah(hasil.team_sales or 0) }}</th>
@@ -189,6 +193,7 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
 {% endif %}
 <p class="mut" style="margin-top:10px">Tarif per unit mengikuti tingkat achievement omset
 masing-masing sales. Insentif aksesoris = {{ 5 }}% dari gross profit.
+Insentif parfum = {{ rupiah(hasil.tarif_parfum or 0) }} per pcs.
 Jumlah faktur yang diproses: {{ '{:,}'.format(hasil.jumlah_faktur_diproses) }}.
 {% set nihil = hasil.baris | length - aktif | length %}
 {% if nihil %}{{ nihil }} sales tanpa insentif bulan ini tidak ditampilkan.{% endif %}</p>

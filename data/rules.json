@@ -247,7 +247,9 @@
     ],
     "porsi_team_sales_pct": 80,
     "porsi_team_sl_pct": 20,
-    "catatan_porsi_team": "Pool Insentif Team dibagi: sekian persen untuk sales (pro-rata menurut omset jasa service Member Reguler masing-masing) dan sisanya untuk Store Leader cabang."
+    "catatan_porsi_team": "Pool Insentif Team dibagi: sekian persen untuk sales (pro-rata menurut omset jasa service Member Reguler masing-masing) dan sisanya untuk Store Leader cabang.",
+    "insentif_parfum_per_pcs": 3000,
+    "catatan_parfum": "Insentif parfum dihitung per pcs (kolom QTY pada baris berkategori barang PARFUM), diatribusikan ke kolom Yang Menyerahkan/Menjual."
   },
   "purchasing": {
     "goal_performate_pct": 55,

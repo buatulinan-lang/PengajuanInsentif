@@ -202,6 +202,8 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
     omset = defaultdict(lambda: defaultdict(float))
     gp = defaultdict(lambda: defaultdict(float))
     unit = defaultdict(lambda: defaultdict(set))
+    # Parfum dihitung per pcs, bukan per faktur, jadi QTY-nya dijumlahkan.
+    pcs_parfum = defaultdict(float)
     bagi_hasil_member = 0.0
     # Omset jasa Member Reguler per sales — dasar pembagian porsi Insentif Team.
     jasa_member = defaultdict(float)
@@ -251,6 +253,9 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
                     unit[penjual_faktur][kunci].add(no)
             if kat_jual.startswith("SERVICE"):
                 unit[penjual_faktur]["service"].add(no)
+        if penjual_faktur and kat == "PARFUM":
+            qty = _num(_amb(f, "QTY", "Qty", "Jumlah"))
+            pcs_parfum[penjual_faktur] += qty if qty else 1
 
     nama_status = {s["nama"]: s.get("status", "") for s in (daftar_sales or [])}
     urutan = [s["nama"] for s in (daftar_sales or [])] or sorted(omset)
@@ -266,7 +271,10 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
         tarif_lt = _tarif(rules, omset_total, "laptop")
         ins_aks = gp[nama]["AKSESORIS"] * rules["pct_insentif_aksesoris"] / 100
         ins_hp, ins_lt = n_hp * tarif_hp, n_lt * tarif_lt
-        subtotal = ins_aks + ins_hp + ins_lt
+        n_parfum = int(round(pcs_parfum.get(nama, 0.0)))
+        tarif_parfum = rules.get("insentif_parfum_per_pcs", 0)
+        ins_parfum = n_parfum * tarif_parfum
+        subtotal = ins_aks + ins_hp + ins_lt + ins_parfum
         total_insentif += subtotal
         baris.append({
             "nama": nama, "status": nama_status.get(nama, ""),
@@ -282,6 +290,8 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
             "tarif_handphone": tarif_hp, "tarif_laptop": tarif_lt,
             "insentif_aksesoris": round(ins_aks),
             "insentif_handphone": ins_hp, "insentif_laptop": ins_lt,
+            "n_parfum": n_parfum, "tarif_parfum": tarif_parfum,
+            "insentif_parfum": ins_parfum,
             "total": round(subtotal),
         })
 
@@ -316,6 +326,7 @@ def hitung_sales(path_pelanggan, path_faktur, bulan, tahun=None,
         "omset_service_member": round(bagi_hasil_member),
         "pct_bagi_hasil_teknisi": pct_bagi_hasil_teknisi,
         "pct_insentif_team": rules["pct_insentif_team"],
+        "tarif_parfum": rules.get("insentif_parfum_per_pcs", 0),
         "insentif_team": insentif_team,
         "pct_team_sales": pct_sales, "pct_team_sl": pct_sl,
         "team_sales": jatah_sales, "team_store_leader": jatah_sl,
