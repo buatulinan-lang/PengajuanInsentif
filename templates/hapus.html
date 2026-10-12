@@ -3,6 +3,11 @@
 <h1 style="margin-top:0">Hapus Pengajuan?</h1>
 <p>Pengajuan berikut akan dihapus permanen beserta seluruh lampiran dan
 riwayat persetujuannya. Tindakan ini tidak dapat dibatalkan.</p>
+{% if sub.status != 'draft' %}
+<p class="err">Pengajuan ini sudah dikirim dan tampil di daftar
+{{ STATUS_LABELS[sub.status] }}. Menghapusnya membuat pengajuan itu hilang
+juga dari layar penyetuju.</p>
+{% endif %}
 
 <table style="margin-bottom:18px">
 <tr><th>Kode</th><td>{{ sub.code }}</td></tr>

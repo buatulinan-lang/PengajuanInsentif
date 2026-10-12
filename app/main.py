@@ -389,13 +389,32 @@ def ubah_baris_sales(request: Request, sid: int, nama: str = Form(...),
 
 
 # ------------------------------------------------- hapus pengajuan
+def _alasan_tak_bisa_hapus(u, sub):
+    if sub.submitter_id != u.id:
+        return "Pengajuan ini bukan milik Anda."
+    return ("Pengajuan ini sudah disetujui atau ditolak, jadi tidak bisa "
+            "dihapus lagi. Hubungi admin bila memang perlu dibatalkan.")
+
+
+def sudah_diproses(sub):
+    """Apakah sudah ada yang menyetujui atau menolak pengajuan ini.
+
+    Patokannya riwayat persetujuan, bukan status: aksi "submit" dari pengaju
+    sendiri tidak dihitung. Dengan begitu pengajuan yang baru dikirim dan
+    belum disentuh siapa pun masih boleh ditarik kembali, sedangkan yang
+    sudah di-approve atau ditolak terkunci.
+    """
+    return any(a.action in ("approve", "reject") for a in (sub.approvals or []))
+
+
 def boleh_hapus(u, sub):
-    """Admin boleh menghapus apa saja; pengguna lain hanya draft miliknya
-    sendiri, karena sesudah diajukan dokumennya sudah beredar ke penyetuju."""
+    """Admin boleh menghapus apa saja; pengaju boleh menghapus pengajuannya
+    sendiri selama belum ada yang menyetujui atau menolaknya."""
     if not u or not sub:
         return False
-    return (u.role == ROLE_ADMIN
-            or (sub.submitter_id == u.id and sub.status == ST_DRAFT))
+    if u.role == ROLE_ADMIN:
+        return True
+    return sub.submitter_id == u.id and not sudah_diproses(sub)
 @app.get("/pengajuan/{sid}/hapus", response_class=HTMLResponse)
 def hapus_konfirmasi(request: Request, sid: int, kembali: str = "/"):
     u = require(request)
@@ -404,9 +423,7 @@ def hapus_konfirmasi(request: Request, sid: int, kembali: str = "/"):
     if not sub:
         raise HTTPException(404, "Pengajuan tidak ditemukan")
     if not boleh_hapus(u, sub):
-        raise HTTPException(403, "Pengajuan ini tidak bisa Anda hapus. "
-                                 "Draft hanya bisa dihapus oleh pembuatnya "
-                                 "selama belum diajukan.")
+        raise HTTPException(403, _alasan_tak_bisa_hapus(u, sub))
     return render(request, "hapus.html", sub=sub, kembali=kembali,
                   lampiran=db.query(Attachment).filter_by(submission_id=sid).count())
 
@@ -419,9 +436,7 @@ def hapus_pengajuan(request: Request, sid: int, kembali: str = Form("/")):
     if not sub:
         raise HTTPException(404, "Pengajuan tidak ditemukan")
     if not boleh_hapus(u, sub):
-        raise HTTPException(403, "Pengajuan ini tidak bisa Anda hapus. "
-                                 "Draft hanya bisa dihapus oleh pembuatnya "
-                                 "selama belum diajukan.")
+        raise HTTPException(403, _alasan_tak_bisa_hapus(u, sub))
     kode = sub.code
     db.query(Attachment).filter_by(submission_id=sid).delete()
     db.query(Approval).filter_by(submission_id=sid).delete()
