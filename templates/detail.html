@@ -191,6 +191,10 @@ hanya tampil di aplikasi dan tidak dicetak pada dokumen pengajuan.</p>
     <button class="tautan-hapus" style="color:var(--navy)">kembalikan</button>
   </form>{% endif %}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
 {% endif %}
+{% if not boleh_ubah_sales and me and s.submitter_id == me.id %}
+<p class="mut" style="margin-top:10px">Daftar sales sudah tidak bisa diubah karena
+pengajuan ini sudah disetujui atau ditolak.</p>
+{% endif %}
 <p class="mut" style="margin-top:10px">Tarif per unit mengikuti tingkat achievement omset
 masing-masing sales. Insentif aksesoris = {{ 5 }}% dari gross profit.
 Insentif parfum = {{ rupiah(hasil.tarif_parfum or 0) }} per pcs.

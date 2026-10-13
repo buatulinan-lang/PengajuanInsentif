@@ -330,8 +330,12 @@ def home(request: Request, tab: str = "", cabang: int = 0, bulan: int = 0,
 
 # ---------------------------------- keluarkan sales dari pengajuan sales & team
 def _boleh_ubah_sales(u, s):
-    """Pengaju boleh menyunting selama masih draft; admin kapan saja."""
-    return u.role == ROLE_ADMIN or (s.submitter_id == u.id and s.status == ST_DRAFT)
+    """Pengaju boleh mengeluarkan nama sales selama belum ada yang menyetujui
+    atau menolak — aturannya sama dengan hapus pengajuan, bukan sekadar draft.
+    Admin kapan saja."""
+    if u.role == ROLE_ADMIN:
+        return True
+    return s.submitter_id == u.id and not sudah_diproses(s)
 
 
 def _hitung_ulang_sales(hasil):
@@ -370,7 +374,10 @@ def ubah_baris_sales(request: Request, sid: int, nama: str = Form(...),
     if not s or s.type != "sales_team":
         raise HTTPException(404, "Pengajuan tidak ditemukan")
     if not _boleh_ubah_sales(u, s):
-        raise HTTPException(403, "Pengajuan ini sudah tidak bisa disunting")
+        raise HTTPException(403, "Daftar sales tidak bisa diubah lagi: "
+                            "pengajuan ini sudah disetujui atau ditolak."
+                            if s.submitter_id == u.id else
+                            "Pengajuan ini bukan milik Anda.")
 
     hasil = json.loads(s.data_json or "{}")
     ketemu = False
