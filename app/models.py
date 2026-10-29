@@ -65,12 +65,18 @@ STATUS_LABELS = {
 # role yang berwenang bertindak pada tiap status
 ACTOR_OF_STATUS = {ST_WAIT_ARM: ROLE_ARM, ST_WAIT_CEO: ROLE_CEO, ST_WAIT_FIN: ROLE_FINANCE}
 
-# Status yang berarti CEO sudah menyetujui. Inilah batas pandang Staff Admin.
-LOLOS_CEO = (ST_WAIT_FIN, ST_DONE)
+# Batas pandang Staff Admin: pengajuan yang sudah lolos approval ARM.
+# Status menunggu_ceo pun berarti ARM sudah menyetujui, jadi ikut terlihat.
+LOLOS_ARM = (ST_WAIT_CEO, ST_WAIT_FIN, ST_DONE)
+# Nama lama dipertahankan supaya kode/impor lain tidak patah.
+LOLOS_CEO = LOLOS_ARM
 
 
-def sudah_lolos_ceo(sub):
-    return bool(sub) and sub.status in LOLOS_CEO
+def sudah_lolos_arm(sub):
+    return bool(sub) and sub.status in LOLOS_ARM
+
+
+sudah_lolos_ceo = sudah_lolos_arm
 
 # ---- Jenis pengajuan ---------------------------------------------------
 TYPES = {

@@ -245,9 +245,9 @@ PELIHAT_SEMUA = (ROLE_ARM, ROLE_CEO, ROLE_FINANCE, ROLE_ADMIN, ROLE_STAFF)
 
 
 def batas_pandang(q, u):
-    """Staff Admin hanya boleh melihat pengajuan yang sudah lolos CEO."""
+    """Staff Admin hanya boleh melihat pengajuan yang sudah disetujui ARM."""
     if u.role == ROLE_STAFF:
-        return q.filter(Submission.status.in_(LOLOS_CEO))
+        return q.filter(Submission.status.in_(LOLOS_ARM))
     return q
 
 
@@ -256,7 +256,7 @@ def boleh_buka(u, sub):
     if not sub:
         return False
     if u.role == ROLE_STAFF:
-        return sudah_lolos_ceo(sub)
+        return sudah_lolos_arm(sub)
     if u.role == ROLE_SL:
         return sub.submitter_id == u.id
     return True
@@ -296,8 +296,8 @@ def home(request: Request, tab: str = "", cabang: int = 0, bulan: int = 0,
 
     if u.role == ROLE_STAFF:
         # Tab tahap awal tidak ada gunanya: isinya pasti kosong untuk peran ini.
-        TAB = [("", "Sudah Disetujui CEO"), (ST_WAIT_FIN, "Pencairan Finance"),
-               (ST_DONE, "Done")]
+        TAB = [("", "Sudah Disetujui ARM"), (ST_WAIT_CEO, "Approval CEO"),
+               (ST_WAIT_FIN, "Pencairan Finance"), (ST_DONE, "Done")]
     else:
         TAB = [("", "Semua"), (ST_DRAFT, "Draft"), (ST_WAIT_ARM, "Approval ARM"),
                (ST_WAIT_CEO, "Approval CEO"), (ST_WAIT_FIN, "Pencairan Finance"),
@@ -1050,7 +1050,7 @@ def detail(request: Request, sid: int):
         raise HTTPException(404, "Pengajuan tidak ditemukan")
     if not boleh_buka(u, s):
         raise HTTPException(403, "Bukan pengajuan Anda" if u.role == ROLE_SL
-                            else "Pengajuan ini belum disetujui CEO, jadi "
+                            else "Pengajuan ini belum disetujui ARM, jadi "
                                  "belum bisa dibuka oleh Staff Admin.")
     hasil = json.loads(s.data_json or "{}")
     giliran = ACTOR_OF_STATUS.get(s.status)
@@ -1139,7 +1139,7 @@ def download_docx(request: Request, sid: int):
         raise HTTPException(404, "Pengajuan tidak ditemukan")
     if not boleh_buka(u, s):
         raise HTTPException(403, "Bukan pengajuan Anda" if u.role == ROLE_SL
-                            else "Pengajuan ini belum disetujui CEO, jadi "
+                            else "Pengajuan ini belum disetujui ARM, jadi "
                                  "belum bisa diunduh oleh Staff Admin.")
 
     hasil = json.loads(s.data_json or "{}")
@@ -1173,12 +1173,12 @@ def unduh_massal(request: Request, sid: list[int] = Form([])):
     if not daftar:
         raise HTTPException(
             403 if u.role == ROLE_STAFF else 404,
-            "Pengajuan yang dipilih belum disetujui CEO, jadi belum bisa "
+            "Pengajuan yang dipilih belum disetujui ARM, jadi belum bisa "
             "diunduh." if u.role == ROLE_STAFF else "Pengajuan tidak ditemukan")
     if u.role == ROLE_STAFF and len(daftar) < len(set(sid)):
         # Sebagian pilihan disaring; beri tahu, jangan diam-diam berkurang.
         print(f"unduh massal: {len(set(sid)) - len(daftar)} pengajuan "
-              f"dilewati karena belum disetujui CEO", flush=True)
+              f"dilewati karena belum disetujui ARM", flush=True)
 
     import zipfile
     zip_path = os.path.join(tempfile.gettempdir(),
